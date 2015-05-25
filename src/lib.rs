@@ -16,8 +16,11 @@ pub struct RecycledString {
 }
 
 impl Drop for RecycledString {
+
+  #[inline(always)] 
   fn drop(&mut self) {
-    let string = self.string.take().unwrap();
+    let mut string = self.string.take().unwrap();
+    string.clear();
     let _ = self.pool.borrow_mut().push(string);
   }
 }
@@ -39,6 +42,7 @@ impl RecycledString {
     }
   }
   
+  #[inline(always)] 
   pub fn new_from(pool: Rc<RefCell<Vec<String>>>, source_string: String) -> RecycledString {
     RecycledString {
       string: Some(source_string),
@@ -75,26 +79,22 @@ impl StringPool {
     }
   }
 
-  pub fn shared_reference(&self) -> Rc<RefCell<Vec<String>>> {
-    self.strings.clone()
-  }
- 
-  pub fn new(&mut self) -> String {//RecycledString {
+  pub fn new(&mut self) -> RecycledString {//RecycledString {
     self.new_from("")
   }
-  
-  pub fn new_from(&mut self, source: &str) -> String {
+ 
+  #[inline(always)] 
+  pub fn new_from(&mut self, source: &str) -> RecycledString {
+    let new_reference = self.strings.clone();
     let string = match self.strings.borrow_mut().pop() {
       Some(mut s) => {
-        debug!("Pulling from pool, size now: {}", self.size());
+        //debug!("Pulling from pool, size now: {}", self.size());
         s.push_str(source);
-        //RecycledString::new_from(&self.sender, s)
-        s
+        RecycledString::new_from(new_reference, s)
       },
       None => {
-        debug!("Pool empty, creating a new string.");
-        source.to_owned()
-        //RecycledString::new_from(&self.sender, source.to_owned())
+        //debug!("Pool empty, creating a new string.");
+        RecycledString::new_from(new_reference, source.to_owned())
       }
     };
     string
@@ -105,31 +105,23 @@ impl StringPool {
   }
 }
 
-macro_rules! pooled {
-  ($pool:ident, $value:expr) => {
-    {
-      let string = $pool.new_from($value);
-      let pool_reference = $pool.shared_reference();
-      RecycledString::new_from(pool_reference, string)
-    }
-  }
-}
-
 #[cfg(test)]
 mod tests {
   use super::*;
   use test::Bencher;
   use env_logger;
 
+  const ITERATIONS : u32 = 1_000_000;
+
   #[bench]
   fn normal_allocation_speed(b: &mut Bencher) {
     b.iter(|| {
-      for _ in 0..10_000 {
-        let _string = "man".to_string();
-        let _string = "dog".to_string();
-        let _string = "cat".to_string();
-        let _string = "mouse".to_string();
-        let _string = "cheese".to_string();
+      for _ in 0..ITERATIONS {
+        let _string = "man".to_owned();
+        let _string = "dog".to_owned();
+        let _string = "cat".to_owned();
+        let _string = "mouse".to_owned();
+        let _string = "cheese".to_owned();
       }
     });
   }
@@ -139,12 +131,12 @@ mod tests {
     let _ = env_logger::init();
     let mut pool = StringPool::with_size(5);
     b.iter(|| {
-      for _ in 0..10_000 {
-        let _string = pooled!(pool, "man");
-        let _string = pooled!(pool, "dog");
-        let _string = pooled!(pool, "cat");
-        let _string = pooled!(pool, "mouse");
-        let _string = pooled!(pool, "cheese");
+      for _ in 0..ITERATIONS {
+        let _string = pool.new_from("man");
+        let _string = pool.new_from("dog");
+        let _string = pool.new_from("cat");
+        let _string = pool.new_from("mouse");
+        let _string = pool.new_from("cheese");
       }
     });
   }
