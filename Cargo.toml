@@ -1,0 +1,8 @@
+[package]
+name = "value_pool"
+version = "0.1.0"
+authors = ["Zack Slayton <zack.slayton@gmail.com>"]
+
+[dependencies]
+log = "*"
+env_logger = "*"
