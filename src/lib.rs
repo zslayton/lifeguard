@@ -120,17 +120,17 @@ impl <T> Recycled<T> where T : Recycleable {
   }
 }
 
-pub struct ValuePool <T> where T : Recycleable {
+pub struct Pool <T> where T : Recycleable {
   values: Rc<RefCell<Vec<T>>>,
 }
 
-impl <T> ValuePool <T> where T: Recycleable {
-  pub fn with_size(size: u32) -> ValuePool <T> {
+impl <T> Pool <T> where T: Recycleable {
+  pub fn with_size(size: u32) -> Pool <T> {
     let values: Vec<T> = 
       (0..size)
       .map(|_| T::new() )
       .collect();
-    ValuePool {
+    Pool {
       values: Rc::new(RefCell::new(values)),
     }
   }
@@ -198,7 +198,7 @@ mod tests {
 
   #[bench]
   fn bench02_pooled_allocation_speed(b: &mut Bencher) {
-    let mut pool : ValuePool<String> = ValuePool::with_size(5);
+    let mut pool : Pool<String> = Pool::with_size(5);
     b.iter(|| {
       for _ in 0..ITERATIONS {
         let _string = pool.new();
@@ -226,7 +226,7 @@ mod tests {
   #[bench]
   fn bench04_pooled_initialized_allocation_speed(b: &mut Bencher) {
     let _ = env_logger::init();
-    let mut pool : ValuePool<String> = ValuePool::with_size(5);
+    let mut pool : Pool<String> = Pool::with_size(5);
     b.iter(|| {
       for _ in 0..ITERATIONS {
         let _string = pool.new_from("man");
@@ -254,8 +254,8 @@ mod tests {
 
   #[bench]
   fn bench06_pooled_vec_vec_str(bencher: &mut Bencher) {
-      let mut vec_str_pool : ValuePool<Vec<Recycled<String>>> = ValuePool::with_size(100);
-      let mut str_pool : ValuePool<String> = ValuePool::with_size(10000);
+      let mut vec_str_pool : Pool<Vec<Recycled<String>>> = Pool::with_size(100);
+      let mut str_pool : Pool<String> = Pool::with_size(10000);
       bencher.iter(|| {
           let mut v1 = Vec::new();
           for _ in 0..100 {
@@ -271,14 +271,14 @@ mod tests {
 
   #[test]
   fn test_deref() {
-      let mut str_pool : ValuePool<String> = ValuePool::with_size(1);      
+      let mut str_pool : Pool<String> = Pool::with_size(1);      
       let rstring = str_pool.new_from("cat");
       assert_eq!("cat", *rstring);
   }
 
   #[test]
   fn test_deref_mut() {
-      let mut str_pool : ValuePool<String> = ValuePool::with_size(1);
+      let mut str_pool : Pool<String> = Pool::with_size(1);
       let mut rstring = str_pool.new_from("cat");
       (*rstring).push_str("s love eating mice");
       println!("{}", *rstring);
@@ -287,7 +287,7 @@ mod tests {
 
   #[test]
   fn test_recycle() {
-      let mut str_pool : ValuePool<String> = ValuePool::with_size(1);
+      let mut str_pool : Pool<String> = Pool::with_size(1);
       {
         assert_eq!(1, str_pool.size());
         let _rstring = str_pool.new_from("cat");
@@ -298,7 +298,7 @@ mod tests {
 
   #[test]
   fn test_detached() {
-      let mut str_pool : ValuePool<String> = ValuePool::with_size(1);
+      let mut str_pool : Pool<String> = Pool::with_size(1);
       {
         assert_eq!(1, str_pool.size());
         let _rstring = str_pool.detached();
