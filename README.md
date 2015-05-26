@@ -57,48 +57,7 @@ let mut pool : Pool<String> = Pool::with_size(1);
 assert_eq!(1, pool.size());
 ```
 
-### String Recycling
-```rust
-extern crate lifeguard;
-use lifeguard::Pool;
-use test::Bencher;
-
-const ITERATIONS : u32 = 10_000;
-
-#[bench]
-fn standard_initialized_allocation_speed(b: &mut Bencher) {
-  // Allocating without a pool
-  b.iter(|| {
-    for _ in 0..ITERATIONS {
-      let _ = "man".to_owned();
-      let _ = "dog".to_owned();
-      let _ = "cat".to_owned();
-      let _ = "mouse".to_owned();
-      let _ = "cheese".to_owned();
-    }
-  });
-}
-
-#[bench]
-fn pooled_initialized_allocation_speed(b: &mut Bencher) {
-  let mut pool : Pool<String> = Pool::with_size(5);
-  b.iter(|| {
-    for _ in 0..ITERATIONS {
-      let _ = pool.new_from("man");
-      let _ = pool.new_from("dog");
-      let _ = pool.new_from("cat");
-      let _ = pool.new_from("mouse");
-      let _ = pool.new_from("cheese");
-    } // All strings go out of scope here and are automatically returned to the pool
-  });
-}
-}
-```
-On a VirtualBox VM, this simple test yielded:
-```
-test tests::standard_initialized_allocation_speed ... bench:   2194050 ns/iter (+/- 179969)
-test tests::pooled_initialized_allocation_speed   ... bench:   1715122 ns/iter (+/- 165090)
-```
-An improvement of about 22%; this should likely be more dramatic. Ideas and PRs welcome!
+### Benchmarks
+[Current benchmarks](https://github.com/zslayton/lifeguard/blob/master/src/lib.rs#L187) show speedups between 20 and 40% depending on how much of the task at hand involves pure allocation; this should likely be more dramatic. Ideas and PRs welcome!
 
 Inspired by frankmcsherry's [recycler](https://github.com/frankmcsherry/recycler).
