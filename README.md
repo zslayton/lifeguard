@@ -34,7 +34,10 @@ Values can be unwrapped, detaching them from the pool.
 let mut pool : Pool<String> = Pool::with_size(1);
 {
   assert_eq!(1, pool.size());
-  let string : String = pool.detached(); // An unwrapped String, detached from the Pool
+  let recyled_string : Recycled<String> = pool.new();
+  let string : String = recycled_string.detach();
+  // Alternatively:
+  // let string : String = pool.detached();
   assert_eq!(0, pool.size());
 } // The String goes out of scope and is dropped; it is not returned to the pool
 assert_eq!(0, str_pool.size());
