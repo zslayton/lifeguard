@@ -1,7 +1,7 @@
 # lifeguard
 ## Object Pool Manager
 
-Lifeguard issues owned values wrapped in smartpointers.
+`lifeguard` issues owned values wrapped in smartpointers.
 
 ```rust
 extern crate lifeguard;
