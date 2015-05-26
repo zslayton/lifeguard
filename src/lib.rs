@@ -20,24 +20,29 @@ pub trait InitializeWith<T> {
 }
 
 impl Recycleable for String {
+  #[inline(always)] 
   fn new() -> String {
     String::new()
   }
+  #[inline(always)] 
   fn reset(&mut self) {
     self.clear();
   }
 }
 
 impl <T> Recycleable for Vec<T> {
+  #[inline(always)] 
   fn new() -> Vec<T> {
     Vec::new()
   }
+  #[inline(always)] 
   fn reset(&mut self) {
     self.clear();
   }
 }
 
 impl <A> InitializeWith<A> for String where A : AsRef<str> {
+  #[inline(always)] 
   fn initialize_with(&mut self, source: A) {
     let s : &str = source.as_ref();
     self.push_str(s);
@@ -70,6 +75,7 @@ impl <T> fmt::Display for Recycled<T> where T : fmt::Display + Recycleable {
 
 impl <T> Deref for Recycled<T> where T : Recycleable {
   type Target = T;
+  #[inline(always)] 
   fn deref<'a>(&'a self) -> &'a T {
     match self.value.as_ref() {
       Some(v) => v,
@@ -79,6 +85,7 @@ impl <T> Deref for Recycled<T> where T : Recycleable {
 }
 
 impl <T> DerefMut for Recycled<T> where T : Recycleable {
+  #[inline(always)] 
   fn deref_mut<'a>(&'a mut self) -> &'a mut T {
     match self.value.as_mut() {
       Some(v) => v,
@@ -88,6 +95,7 @@ impl <T> DerefMut for Recycled<T> where T : Recycleable {
 }
 
 impl <T> Recycled<T> where T : Recycleable {
+  #[inline(always)] 
   pub fn new(pool: Rc<RefCell<Vec<T>>>, value: T) -> Recycled<T> {
     Recycled {
       value: Some(value),
@@ -104,6 +112,7 @@ impl <T> Recycled<T> where T : Recycleable {
     }
   }
 
+  #[inline(always)] 
   pub fn detach(mut self) -> T {
     let value = self.value.take().unwrap();
     drop(self);
@@ -154,6 +163,7 @@ impl <T> ValuePool <T> where T: Recycleable {
     Recycled::new_from(pool_reference, t, source)
   }
 
+  #[inline(always)] 
   pub fn size(&self) -> usize {
     self.values.borrow().len()
   }
@@ -163,12 +173,45 @@ impl <T> ValuePool <T> where T: Recycleable {
 mod tests {
   use super::*;
   use test::Bencher;
+  use test::black_box;
   use env_logger;
 
-  const ITERATIONS : u32 = 1_000;
+  const ITERATIONS : u32 = 10_000;
+
+  // Calling String::new() is very close to a no-op; no actual allocation
+  // is performed until bytes are pushed onto the end of the String. As such,
+  // we need to explicitly ask for some space to be available to trigger allocation.
+  const EMPTY_STRING_CAPACITY : usize = 4;
 
   #[bench]
-  fn normal_allocation_speed(b: &mut Bencher) {
+  fn bench01_standard_allocation_speed(b: &mut Bencher) {
+    b.iter(|| {
+      for _ in 0..ITERATIONS {
+        let _string = black_box(String::with_capacity(EMPTY_STRING_CAPACITY));
+        let _string = black_box(String::with_capacity(EMPTY_STRING_CAPACITY));
+        let _string = black_box(String::with_capacity(EMPTY_STRING_CAPACITY));
+        let _string = black_box(String::with_capacity(EMPTY_STRING_CAPACITY));
+        let _string = black_box(String::with_capacity(EMPTY_STRING_CAPACITY));
+      }
+    });
+  }
+
+  #[bench]
+  fn bench02_pooled_allocation_speed(b: &mut Bencher) {
+    let mut pool : ValuePool<String> = ValuePool::with_size(5);
+    b.iter(|| {
+      for _ in 0..ITERATIONS {
+        let _string = pool.new();
+        let _string = pool.new();
+        let _string = pool.new();
+        let _string = pool.new();
+        let _string = pool.new();
+      }
+    });
+  }
+
+  #[bench]
+  fn bench03_standard_initialized_allocation_speed(b: &mut Bencher) {
     b.iter(|| {
       for _ in 0..ITERATIONS {
         let _string = "man".to_owned();
@@ -181,7 +224,7 @@ mod tests {
   }
 
   #[bench]
-  fn pooled_allocation_speed(b: &mut Bencher) {
+  fn bench04_pooled_initialized_allocation_speed(b: &mut Bencher) {
     let _ = env_logger::init();
     let mut pool : ValuePool<String> = ValuePool::with_size(5);
     b.iter(|| {
@@ -194,14 +237,13 @@ mod tests {
       }
     });
   }
-
   #[bench]
-  fn allocate_vec_vec_str(bencher: &mut Bencher) {
+  fn bench05_allocate_vec_vec_str(bencher: &mut Bencher) {
       bencher.iter(|| {
           let mut v1 = Vec::new();
-          for _ in 0..10 {
+          for _ in 0..100 {
               let mut v2 = Vec::new();
-              for _ in 0..10 {
+              for _ in 0..100 {
                   v2.push(("test!").to_owned());
               }
               v1.push(v2);
@@ -211,14 +253,14 @@ mod tests {
   }
 
   #[bench]
-  fn pooled_vec_vec_str(bencher: &mut Bencher) {
-      let mut vec_str_pool : ValuePool<Vec<Recycled<String>>> = ValuePool::with_size(10);
-      let mut str_pool : ValuePool<String> = ValuePool::with_size(100);
+  fn bench06_pooled_vec_vec_str(bencher: &mut Bencher) {
+      let mut vec_str_pool : ValuePool<Vec<Recycled<String>>> = ValuePool::with_size(100);
+      let mut str_pool : ValuePool<String> = ValuePool::with_size(10000);
       bencher.iter(|| {
           let mut v1 = Vec::new();
-          for _ in 0..10 {
+          for _ in 0..100 {
               let mut v2 = vec_str_pool.new();
-              for _ in 0..10 {
+              for _ in 0..100 {
                   v2.push(str_pool.new_from("test!"));
               }
               v1.push(v2);
