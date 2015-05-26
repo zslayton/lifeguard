@@ -4,104 +4,158 @@ extern crate test;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-//use std::sync::mpsc::{channel, Sender, Receiver};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fmt;
-use std::ops::Drop;
+use std::ops::{Drop, Deref, DerefMut};
+use std::convert::AsRef;
 
-pub struct RecycledString {
-  pub string: Option<String>,
-  pool: Rc<RefCell<Vec<String>>>
+pub trait Recycleable {
+  fn new() -> Self;
+  fn reset(&mut self);
 }
 
-impl Drop for RecycledString {
+pub trait InitializeWith<T> {
+  fn initialize_with(&mut self, source: T);
+}
 
+impl Recycleable for String {
+  fn new() -> String {
+    String::new()
+  }
+  fn reset(&mut self) {
+    self.clear();
+  }
+}
+
+impl <T> Recycleable for Vec<T> {
+  fn new() -> Vec<T> {
+    Vec::new()
+  }
+  fn reset(&mut self) {
+    self.clear();
+  }
+}
+
+impl <A> InitializeWith<A> for String where A : AsRef<str> {
+  fn initialize_with(&mut self, source: A) {
+    let s : &str = source.as_ref();
+    self.push_str(s);
+  }
+}
+
+pub struct Recycled<T> where T : Recycleable {
+  pub value: Option<T>,
+  pool: Rc<RefCell<Vec<T>>>
+}
+
+impl <T> Drop for Recycled<T> where T : Recycleable {
   #[inline(always)] 
   fn drop(&mut self) {
-    let mut string = self.string.take().unwrap();
-    string.clear();
-    let _ = self.pool.borrow_mut().push(string);
-  }
-}
-
-impl fmt::Display for RecycledString {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match self.string {
-      Some(ref s) => write!(f, "RecycledString('{}')", s),
-      None => write!(f, "RecycledString('<data missing>')")
+    if let Some(mut value) = self.value.take() {
+      value.reset();
+      let _ = self.pool.borrow_mut().push(value);    
     }
   }
 }
 
-impl RecycledString {
-  pub fn new(pool: Rc<RefCell<Vec<String>>>) -> RecycledString {
-    RecycledString {
-      string: Some(String::new()),
+impl <T> fmt::Display for Recycled<T> where T : fmt::Display + Recycleable {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    match self.value {
+      Some(ref s) => s.fmt(f),
+      None => write!(f, "Empty Recycled<T>")
+    }
+  }
+}
+
+impl <T> Deref for Recycled<T> where T : Recycleable {
+  type Target = T;
+  fn deref<'a>(&'a self) -> &'a T {
+    match self.value.as_ref() {
+      Some(v) => v,
+      None => panic!("Recycleable wrapper missing its value.")
+    }
+  }
+}
+
+impl <T> DerefMut for Recycled<T> where T : Recycleable {
+  fn deref_mut<'a>(&'a mut self) -> &'a mut T {
+    match self.value.as_mut() {
+      Some(v) => v,
+      None => panic!("Recycleable wrapper missing its value.")
+    }
+  }
+}
+
+impl <T> Recycled<T> where T : Recycleable {
+  pub fn new(pool: Rc<RefCell<Vec<T>>>, value: T) -> Recycled<T> {
+    Recycled {
+      value: Some(value),
       pool: pool
     }
   }
   
   #[inline(always)] 
-  pub fn new_from(pool: Rc<RefCell<Vec<String>>>, source_string: String) -> RecycledString {
-    RecycledString {
-      string: Some(source_string),
+  pub fn new_from<A>(pool: Rc<RefCell<Vec<T>>>, mut value: T, source: A) -> Recycled<T> where T : InitializeWith<A> {
+    value.initialize_with(source);
+    Recycled {
+      value: Some(value),
       pool: pool
     }
   }
 
-  pub fn clear(&mut self) {
-    self.string.as_mut().map(|s| s.clear());
-  }
-
-  pub fn len(&self) -> usize {
-    self.string.as_ref().map_or(0, |s| s.len())
-  }
-  
-  pub fn push_str(&mut self, source: &str) {
-    self.string.as_mut().map(|s| s.push_str(source));
+  pub fn detach(mut self) -> T {
+    let value = self.value.take().unwrap();
+    drop(self);
+    value
   }
 }
 
-pub struct StringPool {
-  strings: Rc<RefCell<Vec<String>>>,
+pub struct ValuePool <T> where T : Recycleable {
+  values: Rc<RefCell<Vec<T>>>,
 }
 
-impl StringPool {
-
-  pub fn with_size(size: u32) -> StringPool {
-    let strings: Vec<String> = 
+impl <T> ValuePool <T> where T: Recycleable {
+  pub fn with_size(size: u32) -> ValuePool <T> {
+    let values: Vec<T> = 
       (0..size)
-      .map(|_| String::new() )
+      .map(|_| T::new() )
       .collect();
-    StringPool {
-      strings: Rc::new(RefCell::new(strings)),
+    ValuePool {
+      values: Rc::new(RefCell::new(values)),
     }
   }
 
-  pub fn new(&mut self) -> RecycledString {//RecycledString {
-    self.new_from("")
+  #[inline(always)] 
+  pub fn attach(&mut self, mut value: T) {
+    value.reset();
+    self.values.borrow_mut().push(value);
+  }
+
+  #[inline(always)] 
+  pub fn detached(&mut self) -> T {
+    match self.values.borrow_mut().pop() {
+      Some(v) => v,
+      None => T::new()
+    }
+  }
+
+  #[inline(always)] 
+  pub fn new(&mut self) -> Recycled<T> {
+    let t = self.detached();
+    let pool_reference = self.values.clone();
+    Recycled::new(pool_reference, t)
   }
  
   #[inline(always)] 
-  pub fn new_from(&mut self, source: &str) -> RecycledString {
-    let new_reference = self.strings.clone();
-    let string = match self.strings.borrow_mut().pop() {
-      Some(mut s) => {
-        //debug!("Pulling from pool, size now: {}", self.size());
-        s.push_str(source);
-        RecycledString::new_from(new_reference, s)
-      },
-      None => {
-        //debug!("Pool empty, creating a new string.");
-        RecycledString::new_from(new_reference, source.to_owned())
-      }
-    };
-    string
+  pub fn new_from<A>(&mut self, source: A) -> Recycled<T> where T: InitializeWith<A> {
+    let t = self.detached();
+    let pool_reference = self.values.clone();
+    Recycled::new_from(pool_reference, t, source)
   }
 
   pub fn size(&self) -> usize {
-    self.strings.borrow().len()
+    self.values.borrow().len()
   }
 }
 
@@ -111,7 +165,7 @@ mod tests {
   use test::Bencher;
   use env_logger;
 
-  const ITERATIONS : u32 = 1_000_000;
+  const ITERATIONS : u32 = 1_000;
 
   #[bench]
   fn normal_allocation_speed(b: &mut Bencher) {
@@ -127,9 +181,9 @@ mod tests {
   }
 
   #[bench]
-  fn recycle_allocation_speed(b: &mut Bencher) {
+  fn pooled_allocation_speed(b: &mut Bencher) {
     let _ = env_logger::init();
-    let mut pool = StringPool::with_size(5);
+    let mut pool : ValuePool<String> = ValuePool::with_size(5);
     b.iter(|| {
       for _ in 0..ITERATIONS {
         let _string = pool.new_from("man");
@@ -140,4 +194,75 @@ mod tests {
       }
     });
   }
+
+  #[bench]
+  fn allocate_vec_vec_str(bencher: &mut Bencher) {
+      bencher.iter(|| {
+          let mut v1 = Vec::new();
+          for _ in 0..10 {
+              let mut v2 = Vec::new();
+              for _ in 0..10 {
+                  v2.push(("test!").to_owned());
+              }
+              v1.push(v2);
+          }
+          v1
+      });
+  }
+
+  #[bench]
+  fn pooled_vec_vec_str(bencher: &mut Bencher) {
+      let mut vec_str_pool : ValuePool<Vec<Recycled<String>>> = ValuePool::with_size(10);
+      let mut str_pool : ValuePool<String> = ValuePool::with_size(100);
+      bencher.iter(|| {
+          let mut v1 = Vec::new();
+          for _ in 0..10 {
+              let mut v2 = vec_str_pool.new();
+              for _ in 0..10 {
+                  v2.push(str_pool.new_from("test!"));
+              }
+              v1.push(v2);
+          }
+          v1
+      });
+  }
+
+  #[test]
+  fn test_deref() {
+      let mut str_pool : ValuePool<String> = ValuePool::with_size(1);      
+      let rstring = str_pool.new_from("cat");
+      assert_eq!("cat", *rstring);
+  }
+
+  #[test]
+  fn test_deref_mut() {
+      let mut str_pool : ValuePool<String> = ValuePool::with_size(1);
+      let mut rstring = str_pool.new_from("cat");
+      (*rstring).push_str("s love eating mice");
+      println!("{}", *rstring);
+      assert_eq!("cats love eating mice", *rstring);
+  }
+
+  #[test]
+  fn test_recycle() {
+      let mut str_pool : ValuePool<String> = ValuePool::with_size(1);
+      {
+        assert_eq!(1, str_pool.size());
+        let _rstring = str_pool.new_from("cat");
+        assert_eq!(0, str_pool.size());
+      }
+      assert_eq!(1, str_pool.size());
+  }
+
+  #[test]
+  fn test_detached() {
+      let mut str_pool : ValuePool<String> = ValuePool::with_size(1);
+      {
+        assert_eq!(1, str_pool.size());
+        let _rstring = str_pool.detached();
+        assert_eq!(0, str_pool.size());
+      }
+      assert_eq!(0, str_pool.size());
+  }
+
 }
