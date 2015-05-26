@@ -59,7 +59,7 @@ impl <T> Drop for Recycled<T> where T : Recycleable {
   fn drop(&mut self) {
     if let Some(mut value) = self.value.take() {
       value.reset();
-      let _ = self.pool.borrow_mut().push(value);    
+      self.pool.borrow_mut().push(value);
     }
   }
 }
@@ -125,6 +125,7 @@ pub struct Pool <T> where T : Recycleable {
 }
 
 impl <T> Pool <T> where T: Recycleable {
+  #[inline(always)]
   pub fn with_size(size: u32) -> Pool <T> {
     let values: Vec<T> = 
       (0..size)
