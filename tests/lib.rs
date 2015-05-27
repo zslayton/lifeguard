@@ -2,7 +2,7 @@ extern crate lifeguard;
 
 #[cfg(test)]
 mod tests {
-  use lifeguard::Pool;
+  use lifeguard::{Pool, Recycled};
   
   #[test]
   fn test_deref() {
@@ -36,7 +36,7 @@ mod tests {
       let mut str_pool : Pool<String> = Pool::with_size(1);
       {
         assert_eq!(1, str_pool.size());
-        let _rstring = str_pool.detached();
+        let _string : String = str_pool.new().detach();
         assert_eq!(0, str_pool.size());
       }
       assert_eq!(0, str_pool.size());
@@ -47,9 +47,9 @@ mod tests {
       let mut str_pool : Pool<String> = Pool::with_size(1);
       {
         assert_eq!(1, str_pool.size());
-        let _rstring = str_pool.detached();
+        let string: String = str_pool.new().detach();
         assert_eq!(0, str_pool.size());
-        str_pool.attach(String::new());
+        let _rstring: Recycled<String> = str_pool.attach(string);
       }
       assert_eq!(1, str_pool.size());
   }

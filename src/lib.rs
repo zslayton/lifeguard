@@ -132,9 +132,9 @@ impl <T> Pool <T> where T: Recycleable {
   }
 
   #[inline] 
-  pub fn attach(&mut self, mut value: T) {
-    value.reset();
-    self.values.borrow_mut().push(value);
+  pub fn attach(&mut self, value: T) -> Recycled<T> {
+    let pool_reference = self.values.clone();
+    Recycled::new(pool_reference, value)
   }
 
   #[inline] 
