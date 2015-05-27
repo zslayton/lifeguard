@@ -1,7 +1,4 @@
-#![feature(test)]
-#![allow(dead_code)]
 extern crate lifeguard;
-extern crate test;
 
 #[cfg(test)]
 mod tests {
