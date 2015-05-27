@@ -22,7 +22,7 @@ use lifeguard::Pool;
 //...
 let mut pool : Pool<String> = Pool::with_size(10);
 let mut string = pool.new_from("cat");
-(*string).push_str("s love eating mice");
+(*string).push_str("s love eating mice"); //string.as_mut() also works
 assert_eq!("cats love eating mice", *string);
 ```
 
