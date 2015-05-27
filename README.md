@@ -5,13 +5,15 @@
 
 ```rust
 extern crate lifeguard;
-use lifeguard::Pool;
-//...
-let pool : Pool<String> = Pool::with_size(10);
-{
-   let string : Recycled<String> = Pool::new_from("Hello, World!"); // Pool size is now 9
-} // Values that have gone out of scope are automatically moved back into the pool.
-// Pool size is 10 again
+use lifeguard::{Pool, Recycled};
+
+fn main() {
+    let mut pool : Pool<String> = Pool::with_size(10);
+    {
+        let string = pool.new_from("Hello, World!"); // Pool size is now 9
+    } // Values that have gone out of scope are automatically moved back into the pool.
+    // Pool size is 10 again
+}
 ```
 
 Values taken from the pool can be dereferenced to access/mutate their contents.
@@ -19,34 +21,46 @@ Values taken from the pool can be dereferenced to access/mutate their contents.
 ```rust
 extern crate lifeguard;
 use lifeguard::Pool;
-//...
-let mut pool : Pool<String> = Pool::with_size(10);
-let mut string = pool.new_from("cat");
-(*string).push_str("s love eating mice"); //string.as_mut() also works
-assert_eq!("cats love eating mice", *string);
+
+fn main() {
+    let mut pool : Pool<String> = Pool::with_size(10);
+    let mut string = pool.new_from("cat");
+    string.push_str("s love eating mice"); //string.as_mut() also works
+    assert_eq!("cats love eating mice", *string);
+}
 ```
 
 Values can be unwrapped, detaching them from the pool.
 
 ```rust
-let mut pool : Pool<String> = Pool::with_size(10);
-{
-  let string : String = pool.new().detach();
-} // The String goes out of scope and is dropped; it is not returned to the pool
-assert_eq!(9, pool.size());
+extern crate lifeguard;
+use lifeguard::Pool;
+
+fn main() {
+    let mut pool : Pool<String> = Pool::with_size(10);
+    {
+        let string : String = pool.new().detach();
+    } // The String goes out of scope and is dropped; it is not returned to the pool
+    assert_eq!(9, pool.size());
+}
 ```
 
 Values can be manually entered into / returned to the pool.
 
 ```rust
-let mut pool : Pool<String> = Pool::with_size(10);
-{
-  let string : String = pool.detached(); // An unwrapped String, detached from the Pool
-  assert_eq!(9, pool.size());
-  let rstring : Recycled<String> = pool.attach(string); // The String is attached to the pool again
-  assert_eq!(9, pool.size());
-} // rstring goes out of scope and is added back to the pool
-assert_eq!(10, pool.size());
+extern crate lifeguard;
+use lifeguard::{Pool, Recycled};
+
+fn main() {
+    let mut pool : Pool<String> = Pool::with_size(10);
+    {
+        let string : String = pool.detached(); // An unwrapped String, detached from the Pool
+        assert_eq!(9, pool.size());
+        let rstring : Recycled<String> = pool.attach(string); // The String is attached to the pool again
+        assert_eq!(9, pool.size()); // but it is still checked out from the pool
+    } // rstring goes out of scope and is added back to the pool
+    assert_eq!(10, pool.size());
+}
 ```
 
 ### Highly Unscientific Benchmarks
