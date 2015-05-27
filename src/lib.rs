@@ -77,6 +77,15 @@ impl <T> AsMut<T> for Recycled<T> where T : Recycleable {
   }
 }
 
+impl <T> fmt::Debug for Recycled<T> where T : fmt::Debug + Recycleable {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    match self.value {
+      Some(ref s) => s.fmt(f),
+      None => write!(f, "Empty Recycled<T>")
+    }
+  }
+}
+
 impl <T> fmt::Display for Recycled<T> where T : fmt::Display + Recycleable {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self.value {
