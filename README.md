@@ -9,11 +9,9 @@ use lifeguard::Pool;
 //...
 let pool : Pool<String> = Pool::with_size(10);
 {
-   assert_eq!(pool.size(), 10);
-   let string : Recycled<String> = Pool::new_from("Hello, World!");
-   assert_eq!(pool.size(), 9);
+   let string : Recycled<String> = Pool::new_from("Hello, World!"); // Pool size is now 9
 } // Values that have gone out of scope are automatically moved back into the pool.
-assert_eq!(pool.size(), 10);
+// Pool size is 10 again
 ```
 
 Values taken from the pool can be dereferenced to access/mutate their contents.
@@ -22,7 +20,7 @@ Values taken from the pool can be dereferenced to access/mutate their contents.
 extern crate lifeguard;
 use lifeguard::Pool;
 //...
-let mut pool : Pool<String> = Pool::with_size(1);
+let mut pool : Pool<String> = Pool::with_size(10);
 let mut string = pool.new_from("cat");
 (*string).push_str("s love eating mice");
 assert_eq!("cats love eating mice", *string);
@@ -31,29 +29,23 @@ assert_eq!("cats love eating mice", *string);
 Values can be unwrapped, detaching them from the pool.
 
 ```rust
-let mut pool : Pool<String> = Pool::with_size(1);
+let mut pool : Pool<String> = Pool::with_size(10);
 {
-  assert_eq!(1, pool.size());
-  let recyled_string : Recycled<String> = pool.new();
-  let string : String = recycled_string.detach();
-  // Alternatively:
-  // let string : String = pool.detached();
-  assert_eq!(0, pool.size());
+  let string : String = pool.new().detach();
 } // The String goes out of scope and is dropped; it is not returned to the pool
-assert_eq!(0, str_pool.size());
+assert_eq!(9, pool.size());
 ```
 
 Values can be manually entered into / returned to the pool.
 
 ```rust
-let mut pool : Pool<String> = Pool::with_size(1);
+let mut pool : Pool<String> = Pool::with_size(10);
 {
-  assert_eq!(1, pool.size());
   let string : String = pool.detached(); // An unwrapped String, detached from the Pool
   assert_eq!(0, pool.size());
-  pool.attach(string);
-  assert_eq!(1, pool.size());
-} // The String is owned by the pool now
+  let rstring : Recycled<String> = pool.attach(string); // The String is attached to the pool again
+  assert_eq!(0, pool.size());
+} // rstring goes out of scope and is added back to the pool
 assert_eq!(1, pool.size());
 ```
 
