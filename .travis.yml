@@ -1,2 +1,10 @@
+sudo: false
 language: rust
 rust: stable
+
+script:
+    - |
+        cargo build &&
+        cargo test &&
+        echo "Testing README" &&
+        rustdoc --test README.md --crate-name lifeguard -L dependency=./target/debug/deps --extern lifeguard=./target/debug/liblifeguard.rlib
