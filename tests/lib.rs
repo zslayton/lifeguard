@@ -21,6 +21,21 @@ mod tests {
   }
 
   #[test]
+  fn test_as_mut() {
+      let mut str_pool : Pool<String> = Pool::with_size(1);
+      let mut rstring = str_pool.new_from("cat");
+      rstring.as_mut().push_str("s love eating mice");
+      assert_eq!("cats love eating mice", *rstring);
+  }
+
+  #[test]
+  fn test_as_ref() {
+      let mut str_pool : Pool<String> = Pool::with_size(1);      
+      let rstring = str_pool.new_from("cat");
+      assert_eq!("cat", rstring.as_ref());
+  }
+
+  #[test]
   fn test_recycle() {
       let mut str_pool : Pool<String> = Pool::with_size(1);
       {

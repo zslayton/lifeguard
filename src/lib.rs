@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::fmt;
 use std::ops::{Drop, Deref, DerefMut};
-use std::convert::AsRef;
+use std::convert::{AsRef, AsMut};
 
 pub trait Recycleable {
   fn new() -> Self;
@@ -59,6 +59,24 @@ impl <T> Drop for Recycled<T> where T : Recycleable {
   }
 }
 
+impl <T> AsRef<T> for Recycled<T> where T : Recycleable {
+   fn as_ref(&self) -> &T {
+    match self.value.as_ref() {
+      Some(v) => v,
+      None => panic!("Recycled<T> smartpointer missing its value.")
+    }
+  }
+}
+
+impl <T> AsMut<T> for Recycled<T> where T : Recycleable {
+   fn as_mut(&mut self) -> &mut T {
+    match self.value.as_mut() {
+      Some(v) => v,
+      None => panic!("Recycled<T> smartpointer missing its value.")
+    }
+  }
+}
+
 impl <T> fmt::Display for Recycled<T> where T : fmt::Display + Recycleable {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self.value {
@@ -72,20 +90,14 @@ impl <T> Deref for Recycled<T> where T : Recycleable {
   type Target = T;
   #[inline] 
   fn deref<'a>(&'a self) -> &'a T {
-    match self.value.as_ref() {
-      Some(v) => v,
-      None => panic!("Recycleable wrapper missing its value.")
-    }
+    self.as_ref()
   }
 }
 
 impl <T> DerefMut for Recycled<T> where T : Recycleable {
   #[inline] 
   fn deref_mut<'a>(&'a mut self) -> &'a mut T {
-    match self.value.as_mut() {
-      Some(v) => v,
-      None => panic!("Recycleable wrapper missing its value.")
-    }
+    self.as_mut()
   }
 }
 
