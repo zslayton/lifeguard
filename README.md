@@ -42,11 +42,11 @@ Values can be manually entered into / returned to the pool.
 let mut pool : Pool<String> = Pool::with_size(10);
 {
   let string : String = pool.detached(); // An unwrapped String, detached from the Pool
-  assert_eq!(0, pool.size());
+  assert_eq!(9, pool.size());
   let rstring : Recycled<String> = pool.attach(string); // The String is attached to the pool again
-  assert_eq!(0, pool.size());
+  assert_eq!(9, pool.size());
 } // rstring goes out of scope and is added back to the pool
-assert_eq!(1, pool.size());
+assert_eq!(10, pool.size());
 ```
 
 ### Highly Unscientific Benchmarks
