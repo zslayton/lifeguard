@@ -6,7 +6,7 @@ extern crate lifeguard;
 mod tests {
   use test::Bencher;
   use test::black_box;
-  use lifeguard::{Pool,Recycled};
+  use lifeguard::{Pool,RcRecycled};
 
   const ITERATIONS : u32 = 10_000;
 
@@ -29,8 +29,22 @@ mod tests {
   }
 
   #[bench]
-  fn bench02_pooled_allocation_speed(b: &mut Bencher) {
-    let mut pool : Pool<String> = Pool::with_size(5);
+  fn bench02_pooled_allocation_speed_rc(b: &mut Bencher) {
+    let pool : Pool<String> = Pool::with_size(5);
+    b.iter(|| {
+      for _ in 0..ITERATIONS {
+        let _string = pool.new_rc();
+        let _string = pool.new_rc();
+        let _string = pool.new_rc();
+        let _string = pool.new_rc();
+        let _string = pool.new_rc();
+      }
+    });
+  }
+
+  #[bench]
+  fn bench02_pooled_allocation_speed_scoped(b: &mut Bencher) {
+    let pool : Pool<String> = Pool::with_size(5);
     b.iter(|| {
       for _ in 0..ITERATIONS {
         let _string = pool.new();
@@ -57,14 +71,14 @@ mod tests {
 
   #[bench]
   fn bench04_pooled_initialized_allocation_speed(b: &mut Bencher) {
-    let mut pool : Pool<String> = Pool::with_size(5);
+    let pool : Pool<String> = Pool::with_size(5);
     b.iter(|| {
       for _ in 0..ITERATIONS {
-        let _string = pool.new_from("man");
-        let _string = pool.new_from("dog");
-        let _string = pool.new_from("cat");
-        let _string = pool.new_from("mouse");
-        let _string = pool.new_from("cheese");
+        let _string = pool.new_rc_from("man");
+        let _string = pool.new_rc_from("dog");
+        let _string = pool.new_rc_from("cat");
+        let _string = pool.new_rc_from("mouse");
+        let _string = pool.new_rc_from("cheese");
       }
     });
   }
@@ -85,14 +99,14 @@ mod tests {
 
   #[bench]
   fn bench06_pooled_vec_vec_str(bencher: &mut Bencher) {
-      let mut vec_str_pool : Pool<Vec<Recycled<String>>> = Pool::with_size(100);
-      let mut str_pool : Pool<String> = Pool::with_size(10000);
+      let vec_str_pool : Pool<Vec<RcRecycled<String>>> = Pool::with_size(100);
+      let str_pool : Pool<String> = Pool::with_size(10000);
       bencher.iter(|| {
           let mut v1 = Vec::new();
           for _ in 0..100 {
-              let mut v2 = vec_str_pool.new();
+              let mut v2 = vec_str_pool.new_rc();
               for _ in 0..100 {
-                  v2.push(str_pool.new_from("test!"));
+                  v2.push(str_pool.new_rc_from("test!"));
               }
               v1.push(v2);
           }
