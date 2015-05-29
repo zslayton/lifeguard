@@ -67,11 +67,24 @@ fn main() {
 
 Benchmark source can be found [here](https://github.com/zslayton/lifeguard/blob/master/benches/lib.rs). Tests were run on a VirtualBox VM with 3 CPUs @ 3Ghz and 4GB of RAM.
 
-| Test Description                                           | Allocating Normally           | Using Object Pool | Improvement
-| ---------------------------------------------------------- |:-----------------------------:|:-----------------:|-----------|
-| String Allocation<br/>(String::with_capacity vs Pool::new)     | 14379471 ns/iter<br/>(+/- 939144) | 8100463 ns/iter<br/>(+/- 208630) | ~43.67%
-| String Duplication<br/>(String::to_owned vs Pool::new_from)     | 22243887 ns/iter<br/>(+/- 1251080) | 17502346 ns/iter<br/>(+/- 1086291) | ~21.32%
-| Creating a &lt;Vec&lt;Vec&lt;String>>>     | 1277138 ns/iter<br/>(+/- 114681) | 727415 ns/iter<br/>(+/- 62881) | ~43.04%
+#### Uninitialized Allocation
+
+| `String::with_capacity`      | `Pool::new_rc`             | Improvement | `Pool::new`                | Improvement |
+|:----------------------------:|:--------------------------:|:-----------:|:--------------------------:|:-----------:|
+| 1421183 ns/iter (+/- 161572) | 841286 ns/iter (+/- 78602) |  ~40.80%    | 615875 ns/iter (+/- 53906) |   ~56.67%   |
+
+#### Initialized Allocation
+
+| `String::to_owned`           | `Pool::new_rc_from`         | Improvement | `Pool::new_from`             | Improvement |
+|:----------------------------:|:---------------------------:|:-----------:|:----------------------------:|:-----------:|
+| 2256492 ns/iter (+/- 184229) | 1652247 ns/iter (+/- 185096)|  ~26.78%    | 1430212 ns/iter (+/- 146108) |   ~36.62%   |
+
+#### Vec<Vec<String>>> Allocation
+Adapted from [this benchmark](https://github.com/frankmcsherry/recycler/blob/master/benches/benches.rs#L10).
+
+| `Vec::new` + `String::to_owned` | `Pool::new_rc_from`         | Improvement | `Pool::new_from`             | Improvement |
+|:-------------------------------:|:---------------------------:|:-----------:|:----------------------------:|:-----------:|
+| 1303594 ns/iter (+/- 98974)     | 723338 ns/iter (+/- 82782)  |  ~44.51%    | 678324 ns/iter (+/- 88772)   |   ~47.97%   |
 
 Ideas and PRs welcome!
 
