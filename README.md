@@ -79,7 +79,7 @@ Benchmark source can be found [here](https://github.com/zslayton/lifeguard/blob/
 |:----------------------------:|:---------------------------:|:-----------:|:----------------------------:|:-----------:|
 | 2256492 ns/iter (+/- 184229) | 1652247 ns/iter (+/- 185096)|  ~26.78%    | 1430212 ns/iter (+/- 146108) |   ~36.62%   |
 
-#### Vec<Vec<String>>> Allocation
+#### Vec&lt;Vec&lt;String>> Allocation
 Adapted from [this benchmark](https://github.com/frankmcsherry/recycler/blob/master/benches/benches.rs#L10).
 
 | `Vec::new` + `String::to_owned` | `Pool::new_rc` + `Pool::new_rc_from` | Improvement | `Pool::new` + `Pool::new_from`| Improvement |
