@@ -214,7 +214,7 @@ impl <T> Pool <T>
   where T: Recycleable {
 
   #[inline]
-  pub fn with_size(size: u32) -> Pool <T> {
+  pub fn with_size(size: usize) -> Pool <T> {
     let values: Vec<T> = 
       (0..size)
       .map(|_| T::new() )
