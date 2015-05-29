@@ -82,8 +82,8 @@ Benchmark source can be found [here](https://github.com/zslayton/lifeguard/blob/
 #### Vec<Vec<String>>> Allocation
 Adapted from [this benchmark](https://github.com/frankmcsherry/recycler/blob/master/benches/benches.rs#L10).
 
-| `Vec::new` + `String::to_owned` | `Pool::new_rc_from`         | Improvement | `Pool::new_from`             | Improvement |
-|:-------------------------------:|:---------------------------:|:-----------:|:----------------------------:|:-----------:|
+| `Vec::new` + `String::to_owned` | `Pool::new_rc` + `Pool::new_rc_from` | Improvement | `Pool::new` + `Pool::new_from`| Improvement |
+|:-------------------------------:|:------------------------------------:|:-----------:|:------------------------------:|:-----------:|
 | 1303594 ns/iter (+/- 98974)     | 723338 ns/iter (+/- 82782)  |  ~44.51%    | 678324 ns/iter (+/- 88772)   |   ~47.97%   |
 
 Ideas and PRs welcome!
