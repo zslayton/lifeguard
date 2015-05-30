@@ -1,5 +1,8 @@
 # lifeguard [![](https://api.travis-ci.org/zslayton/lifeguard.png?branch=master)](https://travis-ci.org/zslayton/lifeguard) [![](http://meritbadge.herokuapp.com/lifeguard)](https://crates.io/crates/lifeguard)
 ## Object Pool Manager
+[API Documentation](http://zslayton.github.io/lifeguard/lifeguard/)
+
+### Examples
 
 `Pool` issues owned values wrapped in smartpointers.
 
