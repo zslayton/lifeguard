@@ -6,11 +6,19 @@ use std::ops::{Drop, Deref, DerefMut};
 use std::convert::{AsRef, AsMut};
 use std::borrow::Borrow;
 
+/// In order to be managed by a `Pool`, values must be of a type that
+/// implements the `Recycleable` trait. This allows the `Pool` to create
+/// new instances as well as reset existing instances to a like-new state.
 pub trait Recycleable {
+  /// Allocates a new instance of the implementing type.
   fn new() -> Self;
+  /// Sets the state of the modified instance to be that of a freshly
+  /// allocated instance, thereby allowing it to be reused.
   fn reset(&mut self);
 }
 
+/// Informs how an already allocated value should be initialized 
+/// when provided with a model value or other meaningful input.
 pub trait InitializeWith<T> {
   fn initialize_with(&mut self, source: T);
 }
@@ -45,10 +53,16 @@ impl <A> InitializeWith<A> for String where A : AsRef<str> {
   }
 }
 
+/// A smartpointer which uses reference counting (`Rc`) to know
+/// when to move its wrapped value back to the `Pool` that
+/// issued it.
 pub struct RcRecycled<T> where T: Recycleable {
   value: RecycledInner<Rc<RefCell<Vec<T>>>, T>
 }
 
+/// A smartpointer which uses a shared reference (`&`) to know
+/// when to move its wrapped value back to the `Pool` that
+/// issued it.
 pub struct Recycled<'a, T: 'a> where T: Recycleable {
   value: RecycledInner<&'a RefCell<Vec<T>>, T>
 }
@@ -56,12 +70,14 @@ pub struct Recycled<'a, T: 'a> where T: Recycleable {
 macro_rules! impl_recycled {
   ($name: ident, $typ: ty, $pool: ty) => {
   impl <'a, T> AsRef<T> for $typ where T : Recycleable {
+     /// Gets a shared reference to the value wrapped by the smartpointer.
      fn as_ref(&self) -> &T {
       self.value.as_ref()
     }
   }
 
   impl <'a, T> AsMut<T> for $typ where T : Recycleable {
+     /// Gets a mutable reference to the value wrapped by the smartpointer.
      fn as_mut(&mut self) -> &mut T {
       self.value.as_mut()
     }
@@ -95,16 +111,18 @@ macro_rules! impl_recycled {
   }
 
   impl <'a, T> $typ where T: Recycleable {
-    pub fn new(pool: $pool, value: T) -> $typ {
+    fn new(pool: $pool, value: T) -> $typ {
       $name { value: RecycledInner::new(pool, value) }
     }
     
     #[inline] 
-    pub fn new_from<A>(pool: $pool, value: T, source: A) -> $typ where T : InitializeWith<A> {
+    fn new_from<A>(pool: $pool, value: T, source: A) -> $typ where T : InitializeWith<A> {
       $name { value: RecycledInner::new_from(pool, value, source) }
     }
 
     #[inline] 
+    /// Disassociates the value from the `Pool` that issued it. This
+    /// destroys the smartpointer and returns the previously wrapped value.
     pub fn detach(self) -> T {
       self.value.detach()
     }
@@ -206,13 +224,17 @@ impl <P, T> RecycledInner<P, T> where P: Borrow<RefCell<Vec<T>>>, T : Recycleabl
   }
 }
 
+/// A collection of values that can be reused without requiring new allocations.
+/// 
+/// `Pool` issues each value wrapped in a smartpointer. When the smartpointer goes out of
+/// scope, the wrapped value is automatically returned to the pool.
 pub struct Pool <T> where T : Recycleable {
   values: Rc<RefCell<Vec<T>>>
 }
 
-impl <T> Pool <T>
-  where T: Recycleable {
+impl <T> Pool <T> where T: Recycleable {
 
+  /// Creates a pool with `size` elements of type `T` allocated.
   #[inline]
   pub fn with_size(size: usize) -> Pool <T> {
     let values: Vec<T> = 
@@ -224,43 +246,41 @@ impl <T> Pool <T>
     }
   }
 
+  /// Returns the number of values remaining in the pool.
   #[inline] 
-  pub fn attach_rc(&self, value: T) -> RcRecycled<T> {
-    let pool_reference = self.values.clone();
-    RcRecycled { value: RecycledInner::new(pool_reference, value) }
+  pub fn size(&self) -> usize {
+    (*self.values).borrow().len()
   }
 
-  #[inline] 
-  pub fn new_rc(&self) -> RcRecycled<T> {
-    let t = self.detached();
-    let pool_reference = self.values.clone();
-    RcRecycled { value: RecycledInner::new(pool_reference, t) }
-  }
- 
-  #[inline(always)] 
-  pub fn new_rc_from<A>(&self, source: A) -> RcRecycled<T> where T: InitializeWith<A> {
-    let t = self.detached();
-    let pool_reference = self.values.clone();
-    RcRecycled { value: RecycledInner::new_from(pool_reference, t, source) }
-  }
-
-  #[inline] 
-  pub fn attach(&self, value: T) -> Recycled<T> {
-    Recycled { value: RecycledInner::new(&*self.values, value) }
-  }
-
+  /// Removes a value from the pool and returns it wrapped in
+  /// a `Recycled smartpointer. If the pool is empty when the
+  /// method is called, a new value will be allocated.
   #[inline] 
   pub fn new(&self) -> Recycled<T> {
     let t = self.detached();
     Recycled { value: RecycledInner::new(&*self.values, t) }
   }
 
+  /// Removes a value from the pool, initializes it using the provided
+  /// source value, and returns it wrapped in a `Recycled` smartpointer.
+  /// If the pool is empty when the method is called, a new value will be
+  /// allocated.
   #[inline(always)] 
   pub fn new_from<A>(&self, source: A) -> Recycled<T> where T: InitializeWith<A> {
     let t = self.detached();
     Recycled { value: RecycledInner::new_from(&*self.values, t, source) }
   }
 
+  /// Associates the provided value with the pool by wrapping it in a
+  /// `Recycled` smartpointer.
+  #[inline] 
+  pub fn attach(&self, value: T) -> Recycled<T> {
+    Recycled { value: RecycledInner::new(&*self.values, value) }
+  }
+
+  /// Removes a value from the pool and returns it without wrapping it in
+  /// a smartpointer. When the value goes out of scope it will not be
+  /// returned to the pool.
   #[inline] 
   pub fn detached(&self) -> T {
     match self.values.borrow_mut().pop() {
@@ -269,9 +289,32 @@ impl <T> Pool <T>
     }
   }
 
+  /// Removes a value from the pool and returns it wrapped in
+  /// an `RcRecycled` smartpointer. If the pool is empty when the
+  /// method is called, a new value will be allocated.
   #[inline] 
-  pub fn size(&self) -> usize {
-    (*self.values).borrow().len()
+  pub fn new_rc(&self) -> RcRecycled<T> {
+    let t = self.detached();
+    let pool_reference = self.values.clone();
+    RcRecycled { value: RecycledInner::new(pool_reference, t) }
+  }
+ 
+  /// Removes a value from the pool, initializes it using the provided
+  /// source value, and returns it wrapped in an `RcRecycled` smartpointer.
+  /// If the pool is empty when the method is called, a new value will be
+  /// allocated.
+  #[inline(always)] 
+  pub fn new_rc_from<A>(&self, source: A) -> RcRecycled<T> where T: InitializeWith<A> {
+    let t = self.detached();
+    let pool_reference = self.values.clone();
+    RcRecycled { value: RecycledInner::new_from(pool_reference, t, source) }
+  }
+
+  /// Associates the provided value with the pool by wrapping it in an
+  /// `RcRecycled` smartpointer.
+  #[inline] 
+  pub fn attach_rc(&self, value: T) -> RcRecycled<T> {
+    let pool_reference = self.values.clone();
+    RcRecycled { value: RecycledInner::new(pool_reference, value) }
   }
 }
-  
