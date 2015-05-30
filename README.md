@@ -1,7 +1,7 @@
 # lifeguard [![](https://api.travis-ci.org/zslayton/lifeguard.png?branch=master)](https://travis-ci.org/zslayton/lifeguard) [![](http://meritbadge.herokuapp.com/lifeguard)](https://crates.io/crates/lifeguard)
 ## Object Pool Manager
 
-`lifeguard` issues owned values wrapped in smartpointers.
+`Pool` issues owned values wrapped in smartpointers.
 
 ```rust
 extern crate lifeguard;
