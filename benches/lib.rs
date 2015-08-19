@@ -98,6 +98,48 @@ mod tests {
   }
 
   #[bench]
+  fn initialized_allocation_pooled_with_cap_empty(b: &mut Bencher) {
+    let pool : Pool<String> = Pool::with_size_and_max(0, 5);
+    b.iter(|| {
+      for _ in 0..ITERATIONS {
+        let _string = pool.new_from("man");
+        let _string = pool.new_from("dog");
+        let _string = pool.new_from("cat");
+        let _string = pool.new_from("mouse");
+        let _string = pool.new_from("cheese");
+      }
+    });
+  }
+
+  #[bench]
+  fn initialized_allocation_pooled_with_cap_full(b: &mut Bencher) {
+    let pool : Pool<String> = Pool::with_size_and_max(5, 5);
+    b.iter(|| {
+      for _ in 0..ITERATIONS {
+        let _string = pool.new_from("man");
+        let _string = pool.new_from("dog");
+        let _string = pool.new_from("cat");
+        let _string = pool.new_from("mouse");
+        let _string = pool.new_from("cheese");
+      }
+    });
+  }
+
+  #[bench]
+  fn initialized_allocation_pooled_with_low_cap(b: &mut Bencher) {
+    let pool : Pool<String> = Pool::with_size_and_max(0, 2);
+    b.iter(|| {
+      for _ in 0..ITERATIONS {
+        let _string = pool.new_from("man");
+        let _string = pool.new_from("dog");
+        let _string = pool.new_from("cat");
+        let _string = pool.new_from("mouse");
+        let _string = pool.new_from("cheese");
+      }
+    });
+  }
+
+  #[bench]
   fn vec_vec_str_standard(bencher: &mut Bencher) {
       bencher.iter(|| {
           let mut v1 = Vec::new();
