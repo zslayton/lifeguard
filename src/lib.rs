@@ -292,7 +292,11 @@ impl <T> Pool <T> where T: Recycleable {
     Pool::with_size_and_max(size, usize::max_value())
   }
 
-  /// Creates a pool with `size` elements of type `T` allocated.
+  /// Creates a pool with `size` elements of type `T` allocated
+  /// and sets a maximum pool size of `max_size`. Values being
+  /// added to the pool via `Pool::attach` or being returned to
+  /// the pool upon dropping will instead be discarded if the pool
+  /// is full.
   #[inline]
   pub fn with_size_and_max(starting_size: usize, max_size: usize) -> Pool <T> {
     let values: CappedCollection<T> = CappedCollection::new(starting_size, max_size);
