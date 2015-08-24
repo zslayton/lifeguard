@@ -87,6 +87,18 @@ mod tests {
   }
 
   #[test]
+  fn test_size_cap() {
+      let str_pool : Pool<String> = Pool::with_size_and_max(1, 1);
+      {
+        assert_eq!(1, str_pool.size());
+        let _rstring = str_pool.new_from("dog");
+        let _rstring2 = str_pool.new_from("cat");
+        assert_eq!(0, str_pool.size());
+      }
+      assert_eq!(1, str_pool.size());
+  }
+
+  #[test]
   fn test_detach() {
       let str_pool : Pool<String> = Pool::with_size(1);
       {
