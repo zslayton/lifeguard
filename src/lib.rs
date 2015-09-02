@@ -5,6 +5,7 @@ use std::fmt;
 use std::ops::{Drop, Deref, DerefMut};
 use std::convert::{AsRef, AsMut};
 use std::borrow::Borrow;
+use std::collections::VecDeque;
 
 /// In order to be managed by a `Pool`, values must be of a type that
 /// implements the `Recycleable` trait. This allows the `Pool` to create
@@ -38,6 +39,17 @@ impl <T> Recycleable for Vec<T> {
   #[inline] 
   fn new() -> Vec<T> {
     Vec::new()
+  }
+  #[inline] 
+  fn reset(&mut self) {
+    self.clear();
+  }
+}
+
+impl <T> Recycleable for VecDeque<T> {
+  #[inline] 
+  fn new() -> VecDeque<T> {
+    VecDeque::new()
   }
   #[inline] 
   fn reset(&mut self) {
