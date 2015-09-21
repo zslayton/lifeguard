@@ -441,12 +441,20 @@ impl <T> PoolBuilder<T> where T: Recycleable {
   }
 }
 
+  /// Implementing this trait allows structs to act as configuration
+  /// parameters in the builder API.
 pub trait OptionSetter<T> {
   fn set_option(self, T) -> T;
 }
 
+  /// Specifies a trait object which will be used to generate values when
+  /// the `Pool` is empty.
 pub struct StartingSize(pub usize);
+  /// Specifies the number of values which should be requested from the
+  /// Supplier at initialization time.
 pub struct MaxSize(pub usize);
+  /// Specifies the maximum number of values the pool can hold before it
+  /// will begin to drop values being returned to it.
 pub struct Supplier<T> where T: Recycleable {
   supplier: Box<Supply<T>>
 }
