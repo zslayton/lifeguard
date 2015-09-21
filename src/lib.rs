@@ -237,21 +237,23 @@ impl <P, T> RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T
 
 struct CappedCollection <T> where T: Recycleable {
   values: Vec<T>,
-  cap: usize
+  cap: usize,
+  supplier: Box<Supply<T>>
 }
 
 impl <T> CappedCollection <T> where T: Recycleable {
   #[inline]
-  pub fn new(starting_size: usize, max_size: usize) -> CappedCollection<T> {
+  pub fn new(mut supplier: Box<Supply<T>>, starting_size: usize, max_size: usize) -> CappedCollection<T> {
     use std::cmp;
     let starting_size = cmp::min(starting_size, max_size);
     let values: Vec<T> = 
       (0..starting_size)
-      .map(|_| T::new() )
+      .map(|_| supplier.get() )
       .collect();
     CappedCollection {
       values: values,
-      cap: max_size
+      cap: max_size,
+      supplier: supplier
     }
   }
 
@@ -287,12 +289,22 @@ impl <T> CappedCollection <T> where T: Recycleable {
   }
 }
 
+pub trait Supply<T> where T: Recycleable {
+  fn get(&mut self) -> T;
+}
+
+impl <F, T> Supply<T> for F where F: FnMut() -> T, T: Recycleable {
+  fn get(&mut self) -> T {
+    self()
+  }
+}
+
 /// A collection of values that can be reused without requiring new allocations.
 /// 
 /// `Pool` issues each value wrapped in a smartpointer. When the smartpointer goes out of
 /// scope, the wrapped value is automatically returned to the pool.
 pub struct Pool <T> where T : Recycleable {
-  values: Rc<RefCell<CappedCollection<T>>>
+  values: Rc<RefCell<CappedCollection<T>>>,
 }
 
 impl <T> Pool <T> where T: Recycleable {
@@ -311,7 +323,8 @@ impl <T> Pool <T> where T: Recycleable {
   /// is full.
   #[inline]
   pub fn with_size_and_max(starting_size: usize, max_size: usize) -> Pool <T> {
-    let values: CappedCollection<T> = CappedCollection::new(starting_size, max_size);
+    let supplier = Box::new(|| T::new());
+    let values: CappedCollection<T> = CappedCollection::new(supplier, starting_size, max_size);
     Pool {
       values: Rc::new(RefCell::new(values))
     }
@@ -321,6 +334,12 @@ impl <T> Pool <T> where T: Recycleable {
   #[inline] 
   pub fn size(&self) -> usize {
     (*self.values).borrow().len()
+  }
+  
+  /// Returns the maximum number of values the pool can hold.
+  #[inline] 
+  pub fn max_size(&self) -> usize {
+    (*self.values).borrow().cap()
   }
 
   /// Removes a value from the pool and returns it wrapped in
@@ -354,9 +373,11 @@ impl <T> Pool <T> where T: Recycleable {
   /// returned to the pool.
   #[inline] 
   pub fn detached(&self) -> T {
-    match self.values.borrow_mut().remove() {
+    let mut collection = self.values.borrow_mut();
+    let maybe_value = collection.remove();
+    match maybe_value {
       Some(v) => v,
-      None => T::new()
+      None => collection.supplier.get()
     }
   }
 
@@ -387,5 +408,78 @@ impl <T> Pool <T> where T: Recycleable {
   pub fn attach_rc(&self, value: T) -> RcRecycled<T> {
     let pool_reference = self.values.clone();
     RcRecycled { value: RecycledInner::new(pool_reference, value) }
+  }
+}
+
+pub fn pool<T>() -> PoolBuilder<T> where T: Recycleable {
+  use std::usize;
+  PoolBuilder {
+    starting_size: 16,
+    max_size: usize::max_value(),
+    supplier: None
+  }
+}
+
+pub struct PoolBuilder<T> where T: Recycleable {
+  pub starting_size: usize,
+  pub max_size: usize,
+  pub supplier: Option<Box<Supply<T>>>,
+}
+
+impl <T> PoolBuilder<T> where T: Recycleable {
+  pub fn with<U>(self, option_setter: U) -> PoolBuilder<T> where 
+      U: OptionSetter<PoolBuilder<T>> {
+    option_setter.set_option(self)
+  }
+
+  pub fn build(self) -> Pool<T> where T: Recycleable {
+    let supplier = self.supplier.unwrap_or(Box::new(|| T::new()));
+    let values: CappedCollection<T> = CappedCollection::new(supplier, self.starting_size, self.max_size);
+    Pool {
+      values: Rc::new(RefCell::new(values))
+    }
+  }
+}
+
+pub trait OptionSetter<T> {
+  fn set_option(self, T) -> T;
+}
+
+pub struct StartingSize(pub usize);
+pub struct MaxSize(pub usize);
+pub struct Supplier<T> where T: Recycleable {
+  supplier: Box<Supply<T>>
+}
+
+impl <T> Supplier<T> where T: Recycleable {
+  pub fn new<S>(supplier: S) -> Supplier<T> where S: Supply<T> + 'static {
+    Supplier {
+      supplier: Box::new(supplier)
+    }
+  }
+}
+
+impl <T> OptionSetter<PoolBuilder<T>> for StartingSize where T: Recycleable {
+  fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
+    let StartingSize(size) = self;
+    builder.starting_size = size;
+    builder
+  }
+}
+ 
+impl <T> OptionSetter<PoolBuilder<T>> for MaxSize where T: Recycleable {
+  fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
+    let MaxSize(size) = self;
+    builder.max_size = size;
+    builder
+  }
+}
+
+impl <T> OptionSetter<PoolBuilder<T>> for Supplier<T> where
+    T: Recycleable {
+  fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
+    let Supplier{supplier} = self;
+    builder.supplier = Some(supplier);
+    builder
   }
 }

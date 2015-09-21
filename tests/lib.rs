@@ -2,7 +2,8 @@ extern crate lifeguard;
 
 #[cfg(test)]
 mod tests {
-  use lifeguard::{Pool, RcRecycled, Recycled};
+  use lifeguard;
+  use lifeguard::*;
 
   #[test]
   fn test_deref() {
@@ -142,5 +143,17 @@ mod tests {
         let _rstring: RcRecycled<String> = str_pool.attach_rc(string);
       }
       assert_eq!(1, str_pool.size());
+  }
+
+  #[test]
+  fn test_builder() {
+    let pool = lifeguard::pool()
+        .with(StartingSize(128))
+        .with(MaxSize(1_024))
+        .with(Supplier::new(|| String::with_capacity(16_000)))
+        .build();
+    assert_eq!(pool.size(), 128);
+    assert_eq!(pool.max_size(), 1_024);
+    assert_eq!(pool.new().capacity(), 16_000);
   }
 }
