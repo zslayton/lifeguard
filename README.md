@@ -74,7 +74,7 @@ fn main() {
    // The pool will allocate 128 values for immediate use. More will be allocated on demand.
    .with(StartingSize(128))
    // The pool will only grow up to 4096 values. Further values will be dropped.
-   .with(MaxSize(4096)
+   .with(MaxSize(4096))
    // The pool will use this closure (or other object implementing Supply<T>) to allocate
    .with(Supplier::new(|| -> String::with_capacity(1024)))
    .build();
