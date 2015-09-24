@@ -8,10 +8,10 @@
 
 ```rust
 extern crate lifeguard;
-use lifeguard::{Pool, Recycled};
+use lifeguard::*;
 
 fn main() {
-    let mut pool : Pool<String> = Pool::with_size(10);
+    let mut pool : Pool<String> = pool().with(StartingSize(10)).build();
     {
         let string = pool.new_from("Hello, World!"); // Pool size is now 9
     } // Values that have gone out of scope are automatically moved back into the pool.
@@ -23,10 +23,10 @@ Values taken from the pool can be dereferenced to access/mutate their contents.
 
 ```rust
 extern crate lifeguard;
-use lifeguard::Pool;
+use lifeguard::*;
 
 fn main() {
-    let mut pool : Pool<String> = Pool::with_size(10);
+    let mut pool : Pool<String> = pool().with(StartingSize(10)).build();
     let mut string = pool.new_from("cat");
     string.push_str("s love eating mice"); //string.as_mut() also works
     assert_eq!("cats love eating mice", *string);
@@ -37,10 +37,10 @@ Values can be unwrapped, detaching them from the pool.
 
 ```rust
 extern crate lifeguard;
-use lifeguard::Pool;
+use lifeguard::*;
 
 fn main() {
-    let mut pool : Pool<String> = Pool::with_size(10);
+    let mut pool : Pool<String> = pool().with(StartingSize(10)).build();
     {
         let string : String = pool.new().detach();
     } // The String goes out of scope and is dropped; it is not returned to the pool
@@ -52,10 +52,10 @@ Values can be manually entered into / returned to the pool.
 
 ```rust
 extern crate lifeguard;
-use lifeguard::{Pool, Recycled};
+use lifeguard::*;
 
 fn main() {
-    let mut pool : Pool<String> = Pool::with_size(10);
+    let mut pool : Pool<String> = pool().with(StartingSize(10)).build();
     {
         let string : String = pool.detached(); // An unwrapped String, detached from the Pool
         assert_eq!(9, pool.size());
@@ -63,6 +63,22 @@ fn main() {
         assert_eq!(9, pool.size()); // but it is still checked out from the pool
     } // rstring goes out of scope and is added back to the pool
     assert_eq!(10, pool.size());
+}
+```
+
+`Pool`'s builder API can be used to customize the behavior of the pool.
+
+```rust
+fn main() {
+ let mut pool : Pool<String> = pool()
+   // The pool will allocate 128 values for immediate use. More will be allocated on demand.
+   .with(StartingSize(128))
+   // The pool will only grow up to 4096 values. Further values will be dropped.
+   .with(MaxSize(4096)
+   // The pool will use this closure (or other object implementing Supply<T>) to allocate
+   .with(Supplier::new(|| -> String::with_capacity(1024))
+   .build();
+  // ...
 }
 ```
 
