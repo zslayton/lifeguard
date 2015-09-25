@@ -65,18 +65,18 @@ impl <A> InitializeWith<A> for String where A : AsRef<str> {
   }
 }
 
-/// A smartpointer which uses reference counting (`Rc`) to know
-/// when to move its wrapped value back to the `Pool` that
-/// issued it.
-pub struct RcRecycled<T> where T: Recycleable {
-  value: RecycledInner<Rc<RefCell<CappedCollection<T>>>, T>
-}
-
 /// A smartpointer which uses a shared reference (`&`) to know
 /// when to move its wrapped value back to the `Pool` that
 /// issued it.
 pub struct Recycled<'a, T: 'a> where T: Recycleable {
   value: RecycledInner<&'a RefCell<CappedCollection<T>>, T>
+}
+
+/// A smartpointer which uses reference counting (`Rc`) to know
+/// when to move its wrapped value back to the `Pool` that
+/// issued it.
+pub struct RcRecycled<T> where T: Recycleable {
+  value: RecycledInner<Rc<RefCell<CappedCollection<T>>>, T>
 }
 
 macro_rules! impl_recycled {
@@ -411,6 +411,22 @@ impl <T> Pool <T> where T: Recycleable {
   }
 }
 
+/// Produces a `PoolBuilder` instance
+/// 
+/// # Example
+/// 
+/// ```
+/// extern crate lifeguard;
+/// use lifeguard::*;
+///
+/// fn main() {
+///   let mut pool: Pool<String> = pool()
+///     .with(StartingSize(128))
+///     .with(MaxSize(4096))
+///     .with(Supplier::new(|| String::with_capacity(1024)))
+///     .build();
+/// }
+/// ```
 pub fn pool<T>() -> PoolBuilder<T> where T: Recycleable {
   use std::usize;
   PoolBuilder {
@@ -420,6 +436,7 @@ pub fn pool<T>() -> PoolBuilder<T> where T: Recycleable {
   }
 }
 
+/// Used to define settings for and ultimately crate a `Pool`.
 pub struct PoolBuilder<T> where T: Recycleable {
   pub starting_size: usize,
   pub max_size: usize,
@@ -441,53 +458,58 @@ impl <T> PoolBuilder<T> where T: Recycleable {
   }
 }
 
-  /// Implementing this trait allows structs to act as configuration
-  /// parameters in the builder API.
-pub trait OptionSetter<T> {
-  fn set_option(self, T) -> T;
-}
-
-  /// Specifies a trait object which will be used to generate values when
-  /// the `Pool` is empty.
-pub struct StartingSize(pub usize);
-  /// Specifies the number of values which should be requested from the
-  /// Supplier at initialization time.
-pub struct MaxSize(pub usize);
-  /// Specifies the maximum number of values the pool can hold before it
-  /// will begin to drop values being returned to it.
-pub struct Supplier<T> where T: Recycleable {
-  supplier: Box<Supply<T>>
-}
-
-impl <T> Supplier<T> where T: Recycleable {
-  pub fn new<S>(supplier: S) -> Supplier<T> where S: Supply<T> + 'static {
-    Supplier {
-      supplier: Box::new(supplier)
+pub mod settings {
+  use ::{PoolBuilder, Recycleable, Supply};
+    /// Implementing this trait allows a struct to act as a configuration
+    /// parameter in the builder API.
+  pub trait OptionSetter<T> {
+    fn set_option(self, T) -> T;
+  }
+  
+    /// Specifies how many values should be requested from the Supplier at
+    /// initialization time. These values will be available for immediate use.
+  pub struct StartingSize(pub usize);
+    /// Specifies the largest number of values the `Pool` will hold before it
+    /// will begin to drop values being returned to it.
+  pub struct MaxSize(pub usize);
+    /// Specifies a value implementing `Supply<T>` that will be used to allocate
+    /// new values. If unspecified, `T::new()` will be invoked.
+  pub struct Supplier<T> where T: Recycleable {
+    supplier: Box<Supply<T>>
+  }
+  
+  impl <T> Supplier<T> where T: Recycleable {
+    pub fn new<S>(supplier: S) -> Supplier<T> where S: Supply<T> + 'static {
+      Supplier {
+        supplier: Box::new(supplier)
+      }
+    }
+  }
+  
+  impl <T> OptionSetter<PoolBuilder<T>> for StartingSize where T: Recycleable {
+    fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
+      let StartingSize(size) = self;
+      builder.starting_size = size;
+      builder
+    }
+  }
+   
+  impl <T> OptionSetter<PoolBuilder<T>> for MaxSize where T: Recycleable {
+    fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
+      let MaxSize(size) = self;
+      builder.max_size = size;
+      builder
+    }
+  }
+  
+  impl <T> OptionSetter<PoolBuilder<T>> for Supplier<T> where
+      T: Recycleable {
+    fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
+      let Supplier{supplier} = self;
+      builder.supplier = Some(supplier);
+      builder
     }
   }
 }
 
-impl <T> OptionSetter<PoolBuilder<T>> for StartingSize where T: Recycleable {
-  fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
-    let StartingSize(size) = self;
-    builder.starting_size = size;
-    builder
-  }
-}
- 
-impl <T> OptionSetter<PoolBuilder<T>> for MaxSize where T: Recycleable {
-  fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
-    let MaxSize(size) = self;
-    builder.max_size = size;
-    builder
-  }
-}
-
-impl <T> OptionSetter<PoolBuilder<T>> for Supplier<T> where
-    T: Recycleable {
-  fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
-    let Supplier{supplier} = self;
-    builder.supplier = Some(supplier);
-    builder
-  }
-}
+pub use settings::*;

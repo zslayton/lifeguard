@@ -2,7 +2,6 @@ extern crate lifeguard;
 
 #[cfg(test)]
 mod tests {
-  use lifeguard;
   use lifeguard::*;
 
   #[test]
@@ -147,7 +146,7 @@ mod tests {
 
   #[test]
   fn test_builder() {
-    let pool = lifeguard::pool()
+    let pool = pool()
         .with(StartingSize(128))
         .with(MaxSize(1_024))
         .with(Supplier::new(|| String::with_capacity(16_000)))
