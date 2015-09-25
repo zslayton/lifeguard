@@ -69,6 +69,9 @@ fn main() {
 `Pool`'s builder API can be used to customize the behavior of the pool.
 
 ```rust
+extern crate lifeguard;
+use lifeguard::*;
+
 fn main() {
  let mut pool : Pool<String> = pool()
    // The pool will allocate 128 values for immediate use. More will be allocated on demand.
