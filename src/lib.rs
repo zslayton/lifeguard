@@ -289,6 +289,7 @@ impl <T> CappedCollection <T> where T: Recycleable {
   }
 }
 
+/// Provides a method which will produce new instances of a type
 pub trait Supply<T> where T: Recycleable {
   fn get(&mut self) -> T;
 }
