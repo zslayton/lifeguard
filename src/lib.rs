@@ -512,4 +512,4 @@ pub mod settings {
   }
 }
 
-pub use settings::*;
+pub use settings::{OptionSetter, StartingSize, MaxSize, Supplier};
