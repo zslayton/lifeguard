@@ -436,7 +436,7 @@ pub fn pool<T>() -> PoolBuilder<T> where T: Recycleable {
   }
 }
 
-/// Used to define settings for and ultimately crate a `Pool`.
+/// Used to define settings for and ultimately create a `Pool`.
 pub struct PoolBuilder<T> where T: Recycleable {
   pub starting_size: usize,
   pub max_size: usize,
