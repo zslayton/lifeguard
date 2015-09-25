@@ -238,12 +238,12 @@ impl <P, T> RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T
 struct CappedCollection <T> where T: Recycleable {
   values: Vec<T>,
   cap: usize,
-  supplier: Box<Supply<T>>
+  supplier: Box<Supply<Output=T>>
 }
 
 impl <T> CappedCollection <T> where T: Recycleable {
   #[inline]
-  pub fn new(mut supplier: Box<Supply<T>>, starting_size: usize, max_size: usize) -> CappedCollection<T> {
+  pub fn new(mut supplier: Box<Supply<Output=T>>, starting_size: usize, max_size: usize) -> CappedCollection<T> {
     use std::cmp;
     let starting_size = cmp::min(starting_size, max_size);
     let values: Vec<T> = 
@@ -290,11 +290,14 @@ impl <T> CappedCollection <T> where T: Recycleable {
 }
 
 /// Provides a method which will produce new instances of a type
-pub trait Supply<T> where T: Recycleable {
-  fn get(&mut self) -> T;
+pub trait Supply {
+  type Output: Recycleable;
+
+  fn get(&mut self) -> Self::Output;
 }
 
-impl <F, T> Supply<T> for F where F: FnMut() -> T, T: Recycleable {
+impl <F, T> Supply for F where F: FnMut() -> T, T: Recycleable {
+  type Output = T;
   fn get(&mut self) -> T {
     self()
   }
@@ -424,7 +427,7 @@ impl <T> Pool <T> where T: Recycleable {
 ///   let mut pool: Pool<String> = pool()
 ///     .with(StartingSize(128))
 ///     .with(MaxSize(4096))
-///     .with(Supplier::new(|| String::with_capacity(1024)))
+///     .with(Supplier(|| String::with_capacity(1024)))
 ///     .build();
 /// }
 /// ```
@@ -441,7 +444,7 @@ pub fn pool<T>() -> PoolBuilder<T> where T: Recycleable {
 pub struct PoolBuilder<T> where T: Recycleable {
   pub starting_size: usize,
   pub max_size: usize,
-  pub supplier: Option<Box<Supply<T>>>,
+  pub supplier: Option<Box<Supply<Output=T>>>,
 }
 
 impl <T> PoolBuilder<T> where T: Recycleable {
@@ -473,19 +476,9 @@ pub mod settings {
     /// Specifies the largest number of values the `Pool` will hold before it
     /// will begin to drop values being returned to it.
   pub struct MaxSize(pub usize);
-    /// Specifies a value implementing `Supply<T>` that will be used to allocate
+    /// Specifies a value implementing `Supply<Output=T>` that will be used to allocate
     /// new values. If unspecified, `T::new()` will be invoked.
-  pub struct Supplier<T> where T: Recycleable {
-    supplier: Box<Supply<T>>
-  }
-  
-  impl <T> Supplier<T> where T: Recycleable {
-    pub fn new<S>(supplier: S) -> Supplier<T> where S: Supply<T> + 'static {
-      Supplier {
-        supplier: Box::new(supplier)
-      }
-    }
-  }
+  pub struct Supplier<S>(pub S) where S: Supply;
   
   impl <T> OptionSetter<PoolBuilder<T>> for StartingSize where T: Recycleable {
     fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
@@ -503,11 +496,12 @@ pub mod settings {
     }
   }
   
-  impl <T> OptionSetter<PoolBuilder<T>> for Supplier<T> where
+  impl <T, S> OptionSetter<PoolBuilder<T>> for Supplier<S> where
+      S: Supply<Output=T> + 'static,
       T: Recycleable {
     fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
-      let Supplier{supplier} = self;
-      builder.supplier = Some(supplier);
+      let Supplier(supplier) = self;
+      builder.supplier = Some(Box::new(supplier) as Box<Supply<Output=T>>);
       builder
     }
   }

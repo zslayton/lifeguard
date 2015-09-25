@@ -149,7 +149,7 @@ mod tests {
     let pool = pool()
         .with(StartingSize(128))
         .with(MaxSize(1_024))
-        .with(Supplier::new(|| String::with_capacity(16_000)))
+        .with(Supplier(|| String::with_capacity(16_000)))
         .build();
     assert_eq!(pool.size(), 128);
     assert_eq!(pool.max_size(), 1_024);
