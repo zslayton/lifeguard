@@ -65,6 +65,15 @@ impl <A> InitializeWith<A> for String where A : AsRef<str> {
   }
 }
 
+impl <I, T> InitializeWith<I> for Vec<T> where I: Iterator<Item=T>{
+    #[inline]
+    fn initialize_with(&mut self, source: I) {
+        for it in source{
+            self.push(it);
+        }
+    }
+}
+
 /// A smartpointer which uses a shared reference (`&`) to know
 /// when to move its wrapped value back to the `Pool` that
 /// issued it.
