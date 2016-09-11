@@ -155,4 +155,17 @@ mod tests {
     assert_eq!(pool.max_size(), 1_024);
     assert_eq!(pool.new().capacity(), 16_000);
   }
+
+  #[test]
+    fn test_new_from_iter(){
+        let vec_pool : Pool<Vec<i32>> = Pool::with_size(1);
+        {
+            let vec4 = vec_pool.new_from(0..4);
+            assert_eq!(4, vec4.len())
+        }
+        {
+            let vec3 = vec_pool.new_from(0..3);
+            assert_eq!(3, vec3.len())
+        }
+    }
 }
