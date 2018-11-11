@@ -87,6 +87,32 @@ mod tests {
   }
 
   #[test]
+  fn test_clone() {
+    let str_pool : Pool<String> = Pool::with_size(2);
+    {
+      assert_eq!(2, str_pool.size());
+      let text = str_pool.new_from("cat");
+      let text_clone = text.clone();
+      assert_eq!(text, text_clone);
+      assert_eq!(0, str_pool.size());
+    }
+    assert_eq!(2, str_pool.size());
+  }
+
+  #[test]
+  fn test_rc_clone() {
+    let str_pool : Pool<String> = Pool::with_size(2);
+    {
+      assert_eq!(2, str_pool.size());
+      let text = str_pool.new_rc_from("cat");
+      let text_clone = text.clone();
+      assert_eq!(text, text_clone);
+      assert_eq!(0, str_pool.size());
+    }
+    assert_eq!(2, str_pool.size());
+  }
+
+  #[test]
   fn test_size_cap() {
       let str_pool : Pool<String> = Pool::with_size_and_max(1, 1);
       {

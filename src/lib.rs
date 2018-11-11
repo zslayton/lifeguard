@@ -1,9 +1,11 @@
-#![allow(dead_code)]
+#[allow(dead_code)]
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fmt;
 use std::ops::{Drop, Deref, DerefMut};
 use std::convert::{AsRef, AsMut};
+use std::cmp::{Ord, PartialOrd, PartialEq, Eq, Ordering};
+use std::hash::{Hash, Hasher};
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 
@@ -116,6 +118,36 @@ macro_rules! impl_recycled {
     }
   }
 
+  //-------- Passthrough trait implementations -----------
+
+  impl <'a, T> PartialEq for $typ where T : PartialEq + Recycleable {
+    fn eq(&self, other: &Self) -> bool {
+      self.value.eq(&other.value)
+    }
+  }
+
+  impl <'a, T> Eq for $typ where T: Eq + Recycleable {}
+
+  impl <'a, T> PartialOrd for $typ where T: PartialOrd + Recycleable {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+      self.value.partial_cmp(&other.value)
+    }
+  }
+
+  impl <'a, T> Ord for $typ where T: Ord + Recycleable {
+    fn cmp(&self, other: &Self) -> Ordering {
+      self.value.cmp(&other.value)
+    }
+  }
+
+  impl <'a, T> Hash for $typ where T: Hash + Recycleable {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+      self.value.hash(state)
+    }
+  }
+
+  //------------------------------------------------------
+
   impl <'a, T> Deref for $typ where T : Recycleable {
     type Target = T;
     #[inline] 
@@ -153,16 +185,101 @@ macro_rules! impl_recycled {
 impl_recycled!{ RcRecycled, RcRecycled<T>, Rc<RefCell<CappedCollection<T>>> }
 impl_recycled!{ Recycled, Recycled<'a, T>, &'a RefCell<CappedCollection<T>> }
 
+impl <T> Clone for RcRecycled<T> where T: Clone + Recycleable {
+  fn clone(&self) -> Self {
+    RcRecycled {
+      value: self.value.clone()
+    }
+  }
+}
+
+impl <'a, T> Clone for Recycled<'a, T> where T: Clone + Recycleable {
+  fn clone(&self) -> Self {
+    Recycled {
+      value: self.value.clone()
+    }
+  }
+}
+
 struct RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T : Recycleable {
   value: Option<T>,
   pool: P
 }
 
+// ---------- Passthrough Trait Implementations ------------
+
+impl <P, T> PartialEq for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>,
+                                                    T: PartialEq + Recycleable {
+  fn eq(&self, other: &Self) -> bool {
+    self.value.eq(&other.value)
+  }
+}
+
+impl <P, T> Eq for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>,
+                                             T: Eq + Recycleable {
+
+}
+
+impl <P, T> PartialOrd for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>,
+                                                     T: PartialOrd + Recycleable {
+  fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    self.value.partial_cmp(&other.value)
+  }
+}
+
+impl <P, T> Ord for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>,
+                                              T: Ord + Recycleable {
+  fn cmp(&self, other: &Self) -> Ordering {
+    self.value.cmp(&other.value)
+  }
+}
+
+impl <P, T> Hash for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>,
+                                               T: Hash + Recycleable {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    self.value.hash(state)
+  }
+}
+
+// Implementing Clone requires duplicating our shared reference to the capped collection, so we have
+// to provide separate implementations for RecycledInners used in Recycled and RcRecycled values.
+impl <'a, T> Clone for RecycledInner<&'a RefCell<CappedCollection<T>>, T> where T: Clone + Recycleable {
+  fn clone(&self) -> Self {
+    let pool_ref = &*self.pool;
+    let mut cloned_value = pool_ref.borrow_mut().remove_or_create();
+    cloned_value.clone_from(self.value.as_ref().unwrap());
+    RecycledInner {
+      value: Some(cloned_value),
+      pool: pool_ref
+    }
+  }
+}
+
+impl <T> Clone for RecycledInner<Rc<RefCell<CappedCollection<T>>>, T> where T: Clone + Recycleable {
+  fn clone(&self) -> Self {
+    let pool_ref = self.pool.clone();
+    let mut cloned_value = pool_ref.borrow_mut().remove_or_create();
+    cloned_value.clone_from(self.value.as_ref().unwrap()); //TODO: Get rid of internal Option
+    RecycledInner {
+      value: Some(cloned_value),
+      pool: pool_ref
+    }
+  }
+}
+
+// -------------------------------------------------------------
+
 impl <P, T> Drop for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T : Recycleable {
   #[inline] 
   fn drop(&mut self) {
-    if let Some(value) = self.value.take() {
-      self.pool.borrow().borrow_mut().insert_or_drop(value);
+    if let Some(mut value) = self.value.take() {
+      let pool_ref = self.pool.borrow();
+      if pool_ref.borrow().is_full() {
+        drop(value);
+        return;
+      }
+      value.reset();
+      pool_ref.borrow_mut().insert_prepared_value(value);
     }
   }
 }
@@ -223,7 +340,7 @@ impl <P, T> RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T
   fn new(pool: P, value: T) -> RecycledInner<P, T> {
     RecycledInner {
       value: Some(value),
-      pool: pool
+      pool
     }
   }
   
@@ -232,11 +349,11 @@ impl <P, T> RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T
     value.initialize_with(source);
     RecycledInner {
       value: Some(value),
-      pool: pool
+      pool
     }
   }
 
-  #[inline] 
+  #[inline]
   fn detach(mut self) -> T {
     let value = self.value.take().unwrap();
     drop(self);
@@ -266,20 +383,24 @@ impl <T> CappedCollection <T> where T: Recycleable {
     }
   }
 
+  /// Note: This method does not perform a length check.
+  /// The provided value must be reset() and there must be room in the pool before this is called.
   #[inline]
-  pub fn insert_or_drop(&mut self, mut value: T) {
-    match self.is_full() {
-      true => drop(value),
-      false => {
-        value.reset();
-        self.values.push(value)
-      }
-    }
+  pub fn insert_prepared_value(&mut self, value: T) {
+    self.values.push(value)
   }
 
   #[inline]
   pub fn remove(&mut self) -> Option<T> {
     self.values.pop()
+  }
+
+  #[inline]
+  pub fn remove_or_create(&mut self) -> T {
+    match self.remove() {
+      Some(value) => value,
+      None => self.supplier.get()
+    }
   }
 
   #[inline]
@@ -387,11 +508,7 @@ impl <T> Pool <T> where T: Recycleable {
   #[inline] 
   pub fn detached(&self) -> T {
     let mut collection = self.values.borrow_mut();
-    let maybe_value = collection.remove();
-    match maybe_value {
-      Some(v) => v,
-      None => collection.supplier.get()
-    }
+    collection.remove_or_create()
   }
 
   /// Removes a value from the pool and returns it wrapped in
@@ -517,3 +634,4 @@ pub mod settings {
 }
 
 pub use settings::{OptionSetter, StartingSize, MaxSize, Supplier};
+use std::mem;
