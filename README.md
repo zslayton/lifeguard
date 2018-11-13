@@ -99,7 +99,7 @@ Each benchmark comes in three flavors:
 
 Compares the cost of allocating a new `String` (using `String::with_capacity`, as `String::new` does not allocate immediately) with the cost of retrieving a `String` from the pool.
 
-```
+```ignore
 tests::allocation_standard                          ... bench:   5,322,513 ns/iter (+/- 985,898)
 tests::allocation_pooled_rc                         ... bench:     784,885 ns/iter (+/- 95,245)
 tests::allocation_pooled                            ... bench:     565,864 ns/iter (+/- 66,036)
@@ -109,17 +109,17 @@ tests::allocation_pooled                            ... bench:     565,864 ns/it
 
 Compares the cost of allocating a new `String` and initializing it to a given value (via `&str::to_owned`) with the cost of retrieving a `String` from the pool and initializing it to the same value.
 
-```
-test tests::initialized_allocation_standard              ... bench:   5,329,948 ns/iter (+/- 547,725)
-test tests::initialized_allocation_pooled_rc             ... bench:   1,151,493 ns/iter (+/- 119,293)
-test tests::initialized_allocation_pooled                ... bench:     927,214 ns/iter (+/- 147,935)
+```ignore
+tests::initialized_allocation_standard              ... bench:   5,329,948 ns/iter (+/- 547,725)
+tests::initialized_allocation_pooled_rc             ... bench:   1,151,493 ns/iter (+/- 119,293)
+tests::initialized_allocation_pooled                ... bench:     927,214 ns/iter (+/- 147,935)
 ```
 
 #### Vec&lt;Vec&lt;String>> Allocation
 
 Creates a two-dimensional vector of initialized Strings. All `Vec`s and `String`s created are from a `Pool` where applicable. Adapted from [this benchmark](https://github.com/frankmcsherry/recycler/blob/master/benches/benches.rs#L10).
 
-```
+```ignore
 tests::vec_vec_str_standard                         ... bench:   1,353,906 ns/iter (+/- 142,094)
 tests::vec_vec_str_pooled_rc                        ... bench:     298,087 ns/iter (+/- 168,703)
 tests::vec_vec_str_pooled                           ... bench:     251,082 ns/iter (+/- 24,408)
