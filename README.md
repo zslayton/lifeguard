@@ -87,26 +87,43 @@ fn main() {
 
 ### Highly Unscientific Benchmarks
 
-Benchmark source can be found [here](https://github.com/zslayton/lifeguard/blob/master/benches/lib.rs). Tests were run on a VirtualBox VM with 3 CPUs @ 3Ghz and 4GB of RAM.
+Benchmark source can be found [here](https://github.com/zslayton/lifeguard/blob/master/benches/lib.rs). Tests were run on an early 2015 MacBook Pro.
+
+Each benchmark comes in three flavors:
+
+1. `tests::*_standard`: Uses the system allocator to create new values.
+2. `tests::*_pooled_rc`: Uses a `Pool` to create new values which hold `Rc` references to the `Pool`. These values can be freely passed to other scopes.
+3. `tests::*_pooled`: Uses a `Pool` to create new values which hold `&` locally-scoped references to the `Pool`. These values are the cheapest to create but are bound to the lifetime of the `Pool`.
 
 #### Uninitialized Allocation
 
-| `String::with_capacity`      | `Pool::new_rc`             | Improvement | `Pool::new`                | Improvement |
-|:----------------------------:|:--------------------------:|:-----------:|:--------------------------:|:-----------:|
-| 1421183 ns/iter (+/- 161572) | 841286 ns/iter (+/- 78602) |  ~40.80%    | 615875 ns/iter (+/- 53906) |   ~56.67%   |
+Compares the cost of allocating a new `String` (using `String::with_capacity`, as `String::new` does not allocate immediately) with the cost of retrieving a `String` from the pool.
+
+```
+tests::allocation_standard                          ... bench:   5,322,513 ns/iter (+/- 985,898)
+tests::allocation_pooled_rc                         ... bench:     784,885 ns/iter (+/- 95,245)
+tests::allocation_pooled                            ... bench:     565,864 ns/iter (+/- 66,036)
+```
 
 #### Initialized Allocation
 
-| `String::to_owned`           | `Pool::new_rc_from`         | Improvement | `Pool::new_from`             | Improvement |
-|:----------------------------:|:---------------------------:|:-----------:|:----------------------------:|:-----------:|
-| 2256492 ns/iter (+/- 184229) | 1652247 ns/iter (+/- 185096)|  ~26.78%    | 1430212 ns/iter (+/- 146108) |   ~36.62%   |
+Compares the cost of allocating a new `String` and initializing it to a given value (via `&str::to_owned`) with the cost of retrieving a `String` from the pool and initializing it to the same value.
+
+```
+test tests::initialized_allocation_standard              ... bench:   5,329,948 ns/iter (+/- 547,725)
+test tests::initialized_allocation_pooled_rc             ... bench:   1,151,493 ns/iter (+/- 119,293)
+test tests::initialized_allocation_pooled                ... bench:     927,214 ns/iter (+/- 147,935)
+```
 
 #### Vec&lt;Vec&lt;String>> Allocation
-Adapted from [this benchmark](https://github.com/frankmcsherry/recycler/blob/master/benches/benches.rs#L10).
 
-| `Vec::new` + `String::to_owned` | `Pool::new_rc` + `Pool::new_rc_from` | Improvement | `Pool::new` + `Pool::new_from`| Improvement |
-|:-------------------------------:|:------------------------------------:|:-----------:|:------------------------------:|:-----------:|
-| 1303594 ns/iter (+/- 98974)     | 723338 ns/iter (+/- 82782)  |  ~44.51%    | 678324 ns/iter (+/- 88772)   |   ~47.97%   |
+Creates a two-dimensional vector of initialized Strings. All `Vec`s and `String`s created are from a `Pool` where applicable. Adapted from [this benchmark](https://github.com/frankmcsherry/recycler/blob/master/benches/benches.rs#L10).
+
+```
+tests::vec_vec_str_pooled                           ... bench:     251,082 ns/iter (+/- 24,408)
+tests::vec_vec_str_pooled_rc                        ... bench:     298,087 ns/iter (+/- 168,703)
+tests::vec_vec_str_standard                         ... bench:   1,353,906 ns/iter (+/- 142,094)
+```
 
 Ideas and PRs welcome!
 
