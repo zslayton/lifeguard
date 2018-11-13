@@ -13,9 +13,10 @@ use lifeguard::*;
 fn main() {
     let mut pool : Pool<String> = pool().with(StartingSize(10)).build();
     {
-        let string = pool.new_from("Hello, World!"); // Pool size is now 9
+        let string = pool.new_from("Hello, World!"); // Remove a value from the pool
+        assert_eq!(9, pool.size());
     } // Values that have gone out of scope are automatically moved back into the pool.
-    // Pool size is 10 again
+    assert_eq!(10, pool.size());
 }
 ```
 
