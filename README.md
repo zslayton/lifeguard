@@ -11,7 +11,7 @@ extern crate lifeguard;
 use lifeguard::*;
 
 fn main() {
-    let mut pool : Pool<String> = pool().with(StartingSize(10)).build();
+    let pool : Pool<String> = pool().with(StartingSize(10)).build();
     {
         let string = pool.new_from("Hello, World!"); // Remove a value from the pool
         assert_eq!(9, pool.size());
@@ -27,7 +27,7 @@ extern crate lifeguard;
 use lifeguard::*;
 
 fn main() {
-    let mut pool : Pool<String> = pool().with(StartingSize(10)).build();
+    let pool : Pool<String> = pool().with(StartingSize(10)).build();
     let mut string = pool.new_from("cat");
     string.push_str("s love eating mice"); //string.as_mut() also works
     assert_eq!("cats love eating mice", *string);
@@ -41,7 +41,7 @@ extern crate lifeguard;
 use lifeguard::*;
 
 fn main() {
-    let mut pool : Pool<String> = pool().with(StartingSize(10)).build();
+    let pool : Pool<String> = pool().with(StartingSize(10)).build();
     {
         let string : String = pool.new().detach();
     } // The String goes out of scope and is dropped; it is not returned to the pool
@@ -56,7 +56,7 @@ extern crate lifeguard;
 use lifeguard::*;
 
 fn main() {
-    let mut pool : Pool<String> = pool().with(StartingSize(10)).build();
+    let pool : Pool<String> = pool().with(StartingSize(10)).build();
     {
         let string : String = pool.detached(); // An unwrapped String, detached from the Pool
         assert_eq!(9, pool.size());
@@ -74,7 +74,7 @@ extern crate lifeguard;
 use lifeguard::*;
 
 fn main() {
- let mut pool : Pool<String> = pool()
+ let pool : Pool<String> = pool()
    // The pool will allocate 128 values for immediate use. More will be allocated on demand.
    .with(StartingSize(128))
    // The pool will only grow up to 4096 values. Further values will be dropped.
