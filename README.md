@@ -120,9 +120,9 @@ test tests::initialized_allocation_pooled                ... bench:     927,214 
 Creates a two-dimensional vector of initialized Strings. All `Vec`s and `String`s created are from a `Pool` where applicable. Adapted from [this benchmark](https://github.com/frankmcsherry/recycler/blob/master/benches/benches.rs#L10).
 
 ```
-tests::vec_vec_str_pooled                           ... bench:     251,082 ns/iter (+/- 24,408)
-tests::vec_vec_str_pooled_rc                        ... bench:     298,087 ns/iter (+/- 168,703)
 tests::vec_vec_str_standard                         ... bench:   1,353,906 ns/iter (+/- 142,094)
+tests::vec_vec_str_pooled_rc                        ... bench:     298,087 ns/iter (+/- 168,703)
+tests::vec_vec_str_pooled                           ... bench:     251,082 ns/iter (+/- 24,408)
 ```
 
 Ideas and PRs welcome!
