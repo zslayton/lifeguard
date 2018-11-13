@@ -8,6 +8,7 @@ use std::cmp::{Ord, PartialOrd, PartialEq, Eq, Ordering};
 use std::hash::{Hash, Hasher};
 use std::borrow::Borrow;
 use std::collections::VecDeque;
+use std::mem::ManuallyDrop;
 
 /// In order to be managed by a `Pool`, values must be of a type that
 /// implements the `Recycleable` trait. This allows the `Pool` to create
@@ -202,7 +203,7 @@ impl <'a, T> Clone for Recycled<'a, T> where T: Clone + Recycleable {
 }
 
 struct RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T : Recycleable {
-  value: Option<T>,
+  value: ManuallyDrop<T>,
   pool: P
 }
 
@@ -247,9 +248,9 @@ impl <'a, T> Clone for RecycledInner<&'a RefCell<CappedCollection<T>>, T> where 
   fn clone(&self) -> Self {
     let pool_ref = &*self.pool;
     let mut cloned_value = pool_ref.borrow_mut().remove_or_create();
-    cloned_value.clone_from(self.value.as_ref().unwrap());
+    cloned_value.clone_from(&self.value);
     RecycledInner {
-      value: Some(cloned_value),
+      value: ManuallyDrop::new(cloned_value),
       pool: pool_ref
     }
   }
@@ -259,9 +260,9 @@ impl <T> Clone for RecycledInner<Rc<RefCell<CappedCollection<T>>>, T> where T: C
   fn clone(&self) -> Self {
     let pool_ref = self.pool.clone();
     let mut cloned_value = pool_ref.borrow_mut().remove_or_create();
-    cloned_value.clone_from(self.value.as_ref().unwrap()); //TODO: Get rid of internal Option
+    cloned_value.clone_from(&self.value);
     RecycledInner {
-      value: Some(cloned_value),
+      value: ManuallyDrop::new(cloned_value),
       pool: pool_ref
     }
   }
@@ -272,65 +273,53 @@ impl <T> Clone for RecycledInner<Rc<RefCell<CappedCollection<T>>>, T> where T: C
 impl <P, T> Drop for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T : Recycleable {
   #[inline] 
   fn drop(&mut self) {
-    if let Some(mut value) = self.value.take() {
-      let pool_ref = self.pool.borrow();
-      if pool_ref.borrow().is_full() {
-        drop(value);
-        return;
-      }
-      value.reset();
-      pool_ref.borrow_mut().insert_prepared_value(value);
+    let value = mem::replace(&mut self.value, unsafe {mem::uninitialized()});
+    let mut value = ManuallyDrop::into_inner(value);
+    let pool_ref = self.pool.borrow();
+    if pool_ref.borrow().is_full() {
+      drop(value);
+      return;
     }
+    value.reset();
+    pool_ref.borrow_mut().insert_prepared_value(value);
   }
 }
 
 impl <P, T> AsRef<T> for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T : Recycleable {
    fn as_ref(&self) -> &T {
-    match self.value.as_ref() {
-      Some(v) => v,
-      None => panic!("Recycled<T> smartpointer missing its value.")
-    }
+     &self.value
   }
 }
 
 impl <P, T> AsMut<T> for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T : Recycleable {
    fn as_mut(&mut self) -> &mut T {
-    match self.value.as_mut() {
-      Some(v) => v,
-      None => panic!("Recycled<T> smartpointer missing its value.")
-    }
+     &mut self.value
   }
 }
 
 impl <P, T> fmt::Debug for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T : fmt::Debug + Recycleable {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match self.value {
-      Some(ref s) => s.fmt(f),
-      None => write!(f, "Empty Recycled<T>")
-    }
+    self.value.fmt(f)
   }
 }
 
 impl <P, T> fmt::Display for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T : fmt::Display + Recycleable {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match self.value {
-      Some(ref s) => s.fmt(f),
-      None => write!(f, "Empty Recycled<T>")
-    }
+    self.value.fmt(f)
   }
 }
 
 impl <P, T> Deref for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T : Recycleable {
   type Target = T;
   #[inline] 
-  fn deref<'a>(&'a self) -> &'a T {
+  fn deref(& self) -> &T {
     self.as_ref()
   }
 }
 
 impl <P, T> DerefMut for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T : Recycleable {
   #[inline] 
-  fn deref_mut<'a>(&'a mut self) -> &'a mut T {
+  fn deref_mut(&mut self) -> & mut T {
     self.as_mut()
   }
 }
@@ -339,7 +328,7 @@ impl <P, T> RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T
   #[inline] 
   fn new(pool: P, value: T) -> RecycledInner<P, T> {
     RecycledInner {
-      value: Some(value),
+      value: ManuallyDrop::new(value),
       pool
     }
   }
@@ -348,16 +337,18 @@ impl <P, T> RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T
   fn new_from<A>(pool: P, mut value: T, source: A) -> RecycledInner<P, T> where T : InitializeWith<A> {
     value.initialize_with(source);
     RecycledInner {
-      value: Some(value),
+      value: ManuallyDrop::new(value),
       pool
     }
   }
 
   #[inline]
   fn detach(mut self) -> T {
-    let value = self.value.take().unwrap();
-    drop(self);
-    value
+    let value = mem::replace(&mut self.value, unsafe {mem::uninitialized()});
+    let pool = mem::replace(&mut self.pool, unsafe {mem::uninitialized()});
+    mem::forget(self);
+    drop(pool);
+    ManuallyDrop::into_inner(value)
   }
 }
 
