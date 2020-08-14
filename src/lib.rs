@@ -72,9 +72,7 @@ impl <A> InitializeWith<A> for String where A : AsRef<str> {
 impl <I, T> InitializeWith<I> for Vec<T> where I: Iterator<Item=T>{
     #[inline]
     fn initialize_with(&mut self, source: I) {
-        for it in source{
-            self.push(it);
-        }
+        self.extend(source);
     }
 }
 
@@ -379,12 +377,12 @@ impl <P, T> RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T
 struct CappedCollection <T> where T: Recycleable {
   values: Vec<T>,
   cap: usize,
-  supplier: Box<Supply<Output=T>>
+  supplier: Box<dyn Supply<Output=T>>
 }
 
 impl <T> CappedCollection <T> where T: Recycleable {
   #[inline]
-  pub fn new(mut supplier: Box<Supply<Output=T>>, starting_size: usize, max_size: usize) -> CappedCollection<T> {
+  pub fn new(mut supplier: Box<dyn Supply<Output=T>>, starting_size: usize, max_size: usize) -> CappedCollection<T> {
     use std::cmp;
     let starting_size = cmp::min(starting_size, max_size);
     let values: Vec<T> = 
@@ -461,8 +459,7 @@ impl <T> Pool <T> where T: Recycleable {
   /// Creates a pool with `size` elements of type `T` allocated.
   #[inline]
   pub fn with_size(size: usize) -> Pool <T> {
-    use std::usize;
-    Pool::with_size_and_max(size, usize::max_value())
+    Pool::with_size_and_max(size, usize::MAX)
   }
 
   /// Creates a pool with `size` elements of type `T` allocated
@@ -573,10 +570,9 @@ impl <T> Pool <T> where T: Recycleable {
 /// }
 /// ```
 pub fn pool<T>() -> PoolBuilder<T> where T: Recycleable {
-  use std::usize;
   PoolBuilder {
     starting_size: 16,
-    max_size: usize::max_value(),
+    max_size: usize::MAX,
     supplier: None
   }
 }
@@ -585,7 +581,7 @@ pub fn pool<T>() -> PoolBuilder<T> where T: Recycleable {
 pub struct PoolBuilder<T> where T: Recycleable {
   pub starting_size: usize,
   pub max_size: usize,
-  pub supplier: Option<Box<Supply<Output=T>>>,
+  pub supplier: Option<Box<dyn Supply<Output=T>>>,
 }
 
 impl <T> PoolBuilder<T> where T: Recycleable {
@@ -642,7 +638,7 @@ pub mod settings {
       T: Recycleable {
     fn set_option(self, mut builder: PoolBuilder<T>) -> PoolBuilder<T> {
       let Supplier(supplier) = self;
-      builder.supplier = Some(Box::new(supplier) as Box<Supply<Output=T>>);
+      builder.supplier = Some(Box::new(supplier) as Box<dyn Supply<Output=T>>);
       builder
     }
   }
