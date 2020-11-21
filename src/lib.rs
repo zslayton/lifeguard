@@ -9,6 +9,7 @@ use std::hash::{Hash, Hasher};
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::mem::ManuallyDrop;
+use std::ptr;
 
 /// In order to be managed by a `Pool`, values must be of a type that
 /// implements the `Recycleable` trait. This allows the `Pool` to create
@@ -273,13 +274,25 @@ impl <T> Clone for RecycledInner<Rc<RefCell<CappedCollection<T>>>, T> where T: C
 impl <P, T> Drop for RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T : Recycleable {
   #[inline] 
   fn drop(&mut self) {
-    let value = mem::replace(&mut self.value, unsafe {mem::uninitialized()});
+    // We need to rescue `self.value` from `self` and then allow `self` to drop normally.
+    let value = unsafe {
+      // Make a byte-for-byte copy of `self.value`
+      ptr::read(&self.value as *const ManuallyDrop<T>)
+      // Because its type is ManuallyDrop<T>, the original value inside of `self` will not be
+      // dropped when `self` drops.
+    };
+
+    // Convert our newly-rescued `ManuallyDrop<T>` into a `T` so it will eventually drop normally.
     let mut value = ManuallyDrop::into_inner(value);
+
+    // If there's no room left in the pool, drop the value here.
     let pool_ref = self.pool.borrow();
     if pool_ref.borrow().is_full() {
       drop(value);
       return;
     }
+
+    // Otherwise, reset value and return it to the pool.
     value.reset();
     pool_ref.borrow_mut().insert_prepared_value(value);
   }
@@ -343,11 +356,22 @@ impl <P, T> RecycledInner<P, T> where P: Borrow<RefCell<CappedCollection<T>>>, T
   }
 
   #[inline]
-  fn detach(mut self) -> T {
-    let value = mem::replace(&mut self.value, unsafe {mem::uninitialized()});
-    let pool = mem::replace(&mut self.pool, unsafe {mem::uninitialized()});
+  fn detach(self) -> T {
+    // We need to split `self` into its component `value` and `pool` fields, drop the pool,
+    // return the value, and forget `self` since its fields are now unwanted clones.
+    let value = unsafe {
+      // Make a byte-for-byte copy of `self.value`
+      ptr::read(&self.value as *const ManuallyDrop<T>)
+    };
+    let pool = unsafe {
+      // Make a byte-for-byte copy of `self.pool`
+      ptr::read(&self.pool as *const P)
+    };
+    // Forget `self` so it doesn't go through our custom `Drop` implementation
     mem::forget(self);
+    // Allow `pool` to drop normally
     drop(pool);
+    // Return the only surviving copy of `value`
     ManuallyDrop::into_inner(value)
   }
 }
