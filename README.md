@@ -1,4 +1,4 @@
-# lifeguard [![](https://api.travis-ci.org/zslayton/lifeguard.png?branch=master)](https://travis-ci.org/zslayton/lifeguard) [![](http://meritbadge.herokuapp.com/lifeguard)](https://crates.io/crates/lifeguard)
+# lifeguard ![CI Build](https://github.com/zslayton/lifeguard/workflows/Rust/badge.svg) [![](http://meritbadge.herokuapp.com/lifeguard)](https://crates.io/crates/lifeguard)
 ## Object Pool Manager
 [API Documentation](http://zslayton.github.io/lifeguard/lifeguard/)
 
