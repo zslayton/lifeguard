@@ -11,4 +11,11 @@ license = "MIT"
 [lib]
 name = "lifeguard"
 
+[[bench]]
+name = "lib"
+harness = false
+
 [dependencies]
+
+[dev-dependencies]
+criterion = "0.2"
