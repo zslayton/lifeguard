@@ -1,6 +1,6 @@
-# lifeguard ![CI Build](https://github.com/zslayton/lifeguard/workflows/Rust/badge.svg) [![](http://meritbadge.herokuapp.com/lifeguard)](https://crates.io/crates/lifeguard)
+# lifeguard ![CI Build](https://github.com/zslayton/lifeguard/workflows/Rust/badge.svg) [![](https://img.shields.io/crates/v/lifeguard.svg)](https://crates.io/crates/lifeguard)
 ## Object Pool Manager
-[API Documentation](http://zslayton.github.io/lifeguard/lifeguard/)
+[API Documentation](https://zslayton.github.io/lifeguard/lifeguard/)
 
 ### Examples
 
